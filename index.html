@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="鋼の自己肯定感">
+  <title>🔩 鋼の自己肯定感</title>
+  <script src="<https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js>"></script>
+  <style>
+    :root {
+      --primary: #2563EB;
+      --primary-dark: #1E40AF;
+      --primary-light: #DBEAFE;
+      --accent: #0EA5E9;
+      --success: #10B981;
+      --warning: #F59E0B;
+      --danger: #EF4444;
+      --bg: #F0F5FF;
+      --card-bg: #FFFFFF;
+      --text: #1E293B;
+      --text-muted: #64748B;
+      --border: #E2E8F0;
+      --shadow: 0 2px 10px rgba(37,99,235,0.07);
+      --shadow-md: 0 6px 20px rgba(37,99,235,0.12);
+      --radius: 18px;
+      --radius-sm: 10px;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: -apple-system, "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic UI", "Meiryo", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      padding-bottom: 76px;
+    }
+    .app-header {
+      background: linear-gradient(135deg, #1E3A8A 0%, #2563EB 60%, #3B82F6 100%);
+      color: white; padding: 14px 20px 12px; text-align: center;
+      position: sticky; top: 0; z-index: 200;
+      box-shadow: 0 2px 16px rgba(30,58,138,0.35);
+    }
+    .app-header h1 { font-size: 1.15rem; font-weight: 800; letter-spacing: 0.5px; }
+    .app-header .subtitle { font-size: 0.68rem; opacity: 0.85; margin-top: 3px; line-height: 1.4; }
+    .bottom-nav {
+      position: fixed; bottom: 0; left: 0; right: 0;
+      background: #fff; border-top: 1px solid var(--border);
+      display: flex; z-index: 200;
+      box-shadow: 0 -2px 16px rgba(0,0,0,0.06);
+      padding-bottom: env(safe-area-inset-bottom, 0);
+    }
+    .nav-item {
+      flex: 1; display: flex; flex-direction: column; align-items: center;
+      justify-content: center; padding: 10px 4px 8px;
+      cursor: pointer; color: var(--text-muted); font-size: 0.62rem; font-weight: 600;
+      transition: color 0.2s; border: none; background: none; min-height: 60px;
+    }
+    .nav-item.active { color: var(--primary); }
+    .nav-item .nav-icon { font-size: 1.45rem; margin-bottom: 3px; line-height: 1; }
+    .page { display: none; max-width: 640px; margin: 0 auto; padding: 18px 16px 8px; animation: fadeIn 0.2s ease; }
+    .page.active { display: block; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+    .card { background: #fff; border-radius: var(--radius); padding: 20px; margin-bottom: 14px; box-shadow: var(--shadow); border: 1px solid rgba(37,99,235,0.07); }
+    .card-title { font-size: 0.78rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px; }
+    .section-header { font-size: 1rem; font-weight: 700; color: var(--primary-dark); margin-bottom: 18px; }
+    .progress-section { background: linear-gradient(135deg, #EFF6FF, #DBEAFE); border-radius: var(--radius); padding: 20px; margin-bottom: 14px; border: 1px solid #BFDBFE; }
+    .progress-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+    .progress-label { font-size: 0.82rem; font-weight: 700; color: var(--primary-dark); }
+    .progress-count { font-size: 1.5rem; font-weight: 800; color: var(--primary); line-height: 1; }
+    .progress-bar-wrap { background: rgba(37,99,235,0.14); border-radius: 100px; height: 10px; overflow: hidden; margin-bottom: 10px; }
+    .progress-bar-fill { height: 100%; background: linear-gradient(90deg, var(--primary), var(--accent)); border-radius: 100px; transition: width 0.7s cubic-bezier(.4,0,.2,1); }
+    .progress-meta { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 6px; }
+    .streak-badge { display: inline-flex; align-items: center; gap: 4px; background: #fff; color: var(--primary); border-radius: 100px; padding: 5px 12px; font-size: 0.8rem; font-weight: 700; border: 1px solid #BFDBFE; box-shadow: 0 1px 4px rgba(37,99,235,0.08); }
+    .remaining-label { font-size: 0.78rem; color: var(--primary-dark); font-weight: 600; }
+    .day-grid { display: grid; grid-template-columns: repeat(10,1fr); gap: 5px; margin-top: 12px; }
+    .day-dot { aspect-ratio: 1; border-radius: 5px; background: rgba(37,99,235,0.12); transition: background 0.3s; }
+    .day-dot.done { background: var(--primary); }
+    .day-dot.current { background: var(--accent); box-shadow: 0 0 0 2px #fff, 0 0 0 3.5px var(--accent); }
+    .btn { display: block; width: 100%; border: none; border-radius: var(--radius); padding: 16px 24px; font-size: 0.95rem; font-weight: 700; cursor: pointer; text-align: center; transition: all 0.18s; min-height: 52px; font-family: inherit; }
+    .btn:active { transform: scale(0.97); }
+    .btn-primary { background: linear-gradient(135deg, var(--primary), #1D4ED8); color: #fff; box-shadow: 0 4px 14px rgba(37,99,235,0.28); }
+    .btn-primary:active { box-shadow: 0 2px 8px rgba(37,99,235,0.18); }
+    .btn-secondary { background: var(--primary-light); color: var(--primary-dark); border: 1.5px solid #BFDBFE; }
+    .btn-secondary:active { background: #BFDBFE; }
+    .btn-success { background: #ECFDF5; color: #065F46; border: 1.5px solid #A7F3D0; }
+    .btn-danger { background: #FEF2F2; color: #B91C1C; border: 1.5px solid #FECACA; }
+    .btn-warning { background: #FFFBEB; color: #92400E; border: 1.5px solid #FDE68A; }
+    .btn-sm { padding: 12px 18px; font-size: 0.88rem; min-height: 46px; }
+    .btn-group { display: flex; flex-direction: column; gap: 10px; }
+    .mb-10 { margin-bottom: 10px; }
+    .mb-14 { margin-bottom: 14px; }
+    .today-done-badge { display: flex; align-items: center; justify-content: center; gap: 8px; background: #ECFDF5; color: #065F46; border: 1.5px solid #A7F3D0; border-radius: var(--radius); padding: 14px; font-weight: 700; font-size: 0.9rem; margin-bottom: 10px; }
+    .memory-card { background: linear-gradient(135deg, #FFF7ED, #FFEDD5); border: 1px solid #FED7AA; border-radius: var(--radius); padding: 18px; margin-bottom: 14px; }
+    .memory-label { font-size: 0.7rem; font-weight: 800; color: #92400E; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
+    .memory-date { font-size: 0.8rem; color: #B45309; margin-bottom: 7px; font-weight: 600; }
+    .memory-item { font-size: 0.84rem; color: #78350F; margin-bottom: 5px; line-height: 1.55; }
+    .memory-score { display: inline-flex; align-items: center; gap: 4px; background: #FEF3C7; color: #92400E; border-radius: 100px; padding: 4px 10px; font-size: 0.78rem; font-weight: 700; margin-top: 8px; }
+    .form-group { margin-bottom: 20px; }
+    .form-label { display: block; font-size: 0.84rem; font-weight: 700; color: var(--text); margin-bottom: 8px; }
+    .form-label .hint { font-weight: 400; color: var(--text-muted); font-size: 0.74rem; margin-left: 5px; }
+    .form-input { width: 100%; border: 2px solid var(--border); border-radius: var(--radius-sm); padding: 14px 16px; font-size: 1rem; font-family: inherit; color: var(--text); background: #fff; transition: border-color 0.2s, box-shadow 0.2s; outline: none; -webkit-appearance: none; appearance: none; }
+    .form-input:focus { border-color: var(--primary); box-shadow: 0 0 0 3.5px rgba(37,99,235,0.12); }
+    textarea.form-input { min-height: 96px; resize: vertical; line-height: 1.65; }
+    input[type="date"].form-input { min-height: 52px; }
+    .score-grid { display: grid; grid-template-columns: repeat(5,1fr); gap: 8px; margin-bottom: 6px; }
+    .score-row2 { display: grid; grid-template-columns: repeat(5,1fr); gap: 8px; margin-bottom: 10px; }
+    .score-btn { aspect-ratio: 1; border: 2px solid var(--border); border-radius: var(--radius-sm); background: #fff; font-size: 1rem; font-weight: 700; cursor: pointer; transition: all 0.15s; min-height: 52px; color: var(--text-muted); font-family: inherit; }
+    .score-btn:active { transform: scale(0.92); }
+    .score-btn.s-low.selected  { background: #EF4444; border-color: #EF4444; color: #fff; box-shadow: 0 2px 8px rgba(239,68,68,0.3); }
+    .score-btn.s-mid.selected  { background: #F59E0B; border-color: #F59E0B; color: #fff; box-shadow: 0 2px 8px rgba(245,158,11,0.3); }
+    .score-btn.s-high.selected { background: #10B981; border-color: #10B981; color: #fff; box-shadow: 0 2px 8px rgba(16,185,129,0.3); }
+    .score-btn.s-top.selected  { background: var(--primary); border-color: var(--primary); color: #fff; box-shadow: 0 2px 8px rgba(37,99,235,0.3); }
+    .score-labels { display: flex; justify-content: space-between; font-size: 0.7rem; color: var(--text-muted); padding: 0 2px; margin-bottom: 10px; }
+    .score-criteria { background: var(--primary-light); border-radius: var(--radius-sm); padding: 12px; font-size: 0.78rem; color: var(--primary-dark); line-height: 1.75; }
+    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 500; display: flex; align-items: flex-end; justify-content: center; animation: fadeIn 0.2s; }
+    .modal-overlay.hidden { display: none; }
+    .modal-sheet { background: #fff; border-radius: 24px 24px 0 0; padding: 28px 22px 36px; width: 100%; max-width: 640px; animation: slideUp 0.28s ease; padding-bottom: calc(36px + env(safe-area-inset-bottom, 0)); }
+    .modal-scroll { max-height: 80vh; overflow-y: auto; }
+    @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+    .modal-title { font-size: 1.05rem; font-weight: 800; color: var(--text); margin-bottom: 14px; text-align: center; }
+    .modal-message { font-size: 0.9rem; color: var(--text-muted); line-height: 1.75; text-align: center; background: #F0F9FF; border-radius: var(--radius-sm); padding: 16px; margin-bottom: 18px; border-left: 3px solid var(--primary); }
+    .record-card { background: #fff; border-radius: var(--radius); padding: 16px; margin-bottom: 11px; box-shadow: var(--shadow); border: 1px solid var(--border); cursor: pointer; transition: box-shadow 0.2s, transform 0.15s; }
+    .record-card:active { transform: scale(0.99); box-shadow: var(--shadow-md); }
+    .record-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 7px; }
+    .record-date { font-size: 0.85rem; font-weight: 700; color: var(--primary); }
+    .record-score-badge { display: flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 50%; font-size: 0.9rem; font-weight: 800; color: #fff; }
+    .sc-1{background:#DC2626}.sc-2{background:#EF4444}.sc-3{background:#F87171}
+    .sc-4{background:#F59E0B}.sc-5{background:#FBBF24}.sc-6{background:#34D399}
+    .sc-7{background:#10B981}.sc-8{background:#059669}.sc-9{background:#2563EB}.sc-10{background:#1D4ED8}
+    .record-preview { font-size: 0.82rem; color: var(--text-muted); line-height: 1.5; }
+    .record-expand-icon { float: right; color: var(--text-muted); font-size: 0.75rem; margin-left: 4px; transition: transform 0.2s; }
+    .record-card.expanded .record-expand-icon { transform: rotate(180deg); }
+    .record-detail { display: none; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
+    .record-card.expanded .record-detail { display: block; }
+    .detail-item { margin-bottom: 10px; }
+    .detail-label { font-size: 0.7rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 3px; }
+    .detail-value { font-size: 0.87rem; color: var(--text); line-height: 1.6; white-space: pre-wrap; word-break: break-word; }
+    .chart-container { position: relative; height: 190px; }
+    .no-data-msg { text-align: center; color: var(--text-muted); font-size: 0.85rem; padding: 28px; }
+    .section-label { font-size: 0.78rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; margin: 16px 0 10px; }
+    .divider { height: 1px; background: var(--border); margin: 18px 0; }
+    .info-box { background: var(--primary-light); border-radius: var(--radius-sm); padding: 14px 16px; font-size: 0.78rem; color: var(--primary-dark); line-height: 1.75; margin-top: 20px; }
+    .file-btn-wrap { position: relative; }
+    .file-btn-wrap input[type="file"] { position: absolute; opacity: 0; inset: 0; cursor: pointer; width: 100%; height: 100%; }
+    .achievement-header { text-align: center; padding: 28px 20px 22px; background: linear-gradient(135deg, #1E3A8A, #2563EB, #0EA5E9); color: #fff; border-radius: var(--radius); margin-bottom: 18px; }
+    .achievement-header .trophy { font-size: 3.2rem; display: block; margin-bottom: 10px; }
+    .achievement-header h2 { font-size: 1.35rem; font-weight: 800; margin-bottom: 6px; }
+    .achievement-header .avg { font-size: 0.95rem; opacity: 0.92; }
+    .milestone-card { background: #fff; border-radius: var(--radius); padding: 16px 18px; margin-bottom: 12px; border-left: 4px solid var(--primary); box-shadow: var(--shadow); }
+    .milestone-label { font-size: 0.72rem; font-weight: 700; color: var(--primary); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 9px; }
+    .milestone-body { font-size: 0.86rem; color: var(--text); line-height: 1.6; }
+    .achievement-quote { text-align: center; padding: 18px 16px; font-size: 0.9rem; color: var(--text-muted); line-height: 1.85; background: #F8FAFF; border-radius: var(--radius-sm); margin-top: 4px; }
+    .toast { position: fixed; top: 76px; left: 50%; transform: translateX(-50%); background: #1E293B; color: #fff; padding: 11px 22px; border-radius: 100px; font-size: 0.84rem; font-weight: 600; z-index: 1000; white-space: nowrap; box-shadow: 0 4px 18px rgba(0,0,0,0.22); animation: toastIn 0.25s ease; }
+    @keyframes toastIn { from { opacity:0; transform: translateX(-50%) translateY(-8px); } to { opacity:1; transform: translateX(-50%) translateY(0); } }
+    .empty-state { text-align: center; padding: 40px 20px; color: var(--text-muted); }
+    .empty-state .icon { font-size: 2.6rem; margin-bottom: 12px; }
+    .empty-state p { font-size: 0.9rem; line-height: 1.65; }
+    .unlock-banner { background: linear-gradient(135deg, #FFF7ED, #FFEDD5); border: 1px solid #FED7AA; border-radius: var(--radius); padding: 18px 20px; margin-bottom: 14px; text-align: center; }
+    .unlock-banner .icon { font-size: 2rem; display: block; margin-bottom: 6px; }
+    .unlock-banner .title { font-size: 0.95rem; font-weight: 700; color: #92400E; }
+  </style>
+</head>
+<body>
+<header class="app-header">
+  <h1>🔩 鋼の自己肯定感</h1>
+  <div class="subtitle">売上で事業を評価する。でも、売上で自分の価値は評価しない。</div>
+</header>
+<div id="page-home" class="page active">
+  <div class="progress-section">
+    <div class="progress-row">
+      <span class="progress-label">📅 30日間の進捗</span>
+      <span class="progress-count"><span id="done-count">0</span><span style="font-size:1rem;font-weight:600;color:var(--primary-dark)">/30</span></span>
+    </div>
+    <div class="progress-bar-wrap"><div class="progress-bar-fill" id="progress-bar" style="width:0%"></div></div>
+    <div class="progress-meta">
+      <span class="streak-badge">🔥 連続 <span id="streak-count">0</span> 日</span>
+      <span class="remaining-label" id="remaining-label"></span>
+    </div>
+    <div class="day-grid" id="day-grid"></div>
+  </div>
+  <div id="today-done-banner" style="display:none" class="today-done-badge">✅ 今日は記録済みです</div>
+  <button class="btn btn-primary mb-14" id="home-cta-btn" onclick="goRecord()" aria-label="今日の記録を入力する">✏️ 今日の記録を入力する</button>
+  <div id="memory-wrap"></div>
+</div>
+<div id="page-record" class="page">
+  <div class="card">
+    <div class="section-header">📝 今日の記録</div>
+    <div class="form-group">
+      <label class="form-label" for="inp-date">日付</label>
+      <input type="date" id="inp-date" class="form-input" inputmode="none" aria-label="記録の日付">
+    </div>
+    <div class="form-group">
+      <label class="form-label" for="inp-challenge">今日の挑戦<span class="hint">チャレンジしたこと</span></label>
+      <textarea id="inp-challenge" class="form-input" placeholder="例）新しいアプローチで提案資料を作った" inputmode="text" autocomplete="off" autocorrect="on" spellcheck="true" aria-label="今日の挑戦"></textarea>
+    </div>
+    <div class="form-group">
+      <label class="form-label" for="inp-learning">今日の学び<span class="hint">気づき・発見</span></label>
+      <textarea id="inp-learning" class="form-input" placeholder="例）断られる理由を分析することで改善点が見えた" inputmode="text" autocomplete="off" autocorrect="on" spellcheck="true" aria-label="今日の学び"></textarea>
+    </div>
+    <div class="form-group">
+      <label class="form-label" for="inp-pride">今日、自分が誇れること<span class="hint">行動・姿勢・態度</span></label>
+      <textarea id="inp-pride" class="form-input" placeholder="例）結果が出なくても最後まで諦めなかった" inputmode="text" autocomplete="off" autocorrect="on" spellcheck="true" aria-label="今日の誇れること"></textarea>
+    </div>
+    <div class="form-group">
+      <label class="form-label">今日の自己評価<span class="hint">成果ではなく行動で</span></label>
+      <div class="score-grid" id="score-row1"></div>
+      <div class="score-row2" id="score-row2"></div>
+      <div class="score-labels"><span>😔 低い</span><span>😊 高い</span></div>
+      <div class="score-criteria">💡 評価基準：行動したか・挑戦したか・誠実に向き合ったか・学びを得たか・改善に向かったか</div>
+    </div>
+    <button class="btn btn-primary" onclick="saveRecord()" aria-label="記録を保存する" style="margin-top:6px">💾 保存する</button>
+  </div>
+</div>
+<div id="page-history" class="page">
+  <div class="card">
+    <div class="card-title">📈 自己評価の推移</div>
+    <div id="chart-area"><div class="chart-container"><canvas id="score-chart"></canvas></div></div>
+    <div id="chart-empty" class="no-data-msg" style="display:none">記録が2件以上になるとグラフが表示されます</div>
+  </div>
+  <div id="records-list"></div>
+</div>
+<div id="page-settings" class="page">
+  <div id="settings-achievement-banner" style="display:none">
+    <div class="unlock-banner"><span class="icon">🏆</span><div class="title">30日達成！成長の証明書を確認しよう</div></div>
+    <button class="btn btn-warning mb-14" onclick="openAchievement()" aria-label="成長の証明書を見る">🏆 成長の証明書を見る</button>
+  </div>
+  <div class="section-label">データ管理</div>
+  <div class="btn-group">
+    <button class="btn btn-secondary" onclick="exportCSV()" aria-label="CSVでエクスポート">📊 CSV でエクスポート</button>
+    <button class="btn btn-secondary" onclick="exportJSON()" aria-label="JSONバックアップをダウンロード">💾 JSON バックアップ（ダウンロード）</button>
+    <div class="file-btn-wrap">
+      <button class="btn btn-success" aria-label="JSONから復元">📂 JSON バックアップから復元</button>
+      <input type="file" accept=".json" id="import-input" onchange="importJSON(event)" aria-label="JSONファイルを選択">
+    </div>
+  </div>
+  <div class="divider"></div>
+  <div class="btn-group">
+    <button class="btn btn-danger" onclick="deleteAll()" aria-label="全データを削除">🗑️ 全データを削除</button>
+  </div>
+  <div class="info-box">
+    💡 <strong>データについて</strong><br>
+    全データはこのデバイスのブラウザ（localStorage）に保存されています。外部サーバーには一切送信されません。定期的にJSONバックアップをとることをおすすめします。
+  </div>
+</div>
+<div id="reframe-modal" class="modal-overlay hidden">
+  <div class="modal-sheet">
+    <div class="modal-title">💙 ちょっと立ち止まって</div>
+    <div class="modal-message">今日の行動の中で、<strong>一つだけ誇れる側面</strong>を探すとしたら何ですか？<br><br>結果ではなく、<strong>向き合った姿勢</strong>に目を向けてみてください。</div>
+    <div class="btn-group">
+      <button class="btn btn-secondary" onclick="closeReframe(false)" aria-label="入力を見直す">✍️ 入力を見直す</button>
+      <button class="btn btn-primary btn-sm" onclick="closeReframe(true)" aria-label="このまま保存する">このまま保存する</button>
+    </div>
+  </div>
+</div>
+<div id="achievement-modal" class="modal-overlay hidden" onclick="maybeCloseAchievement(event)">
+  <div class="modal-sheet modal-scroll" onclick="event.stopPropagation()">
+    <div id="achievement-body"></div>
+    <button class="btn btn-secondary" onclick="closeAchievement()" aria-label="閉じる">閉じる</button>
+  </div>
+</div>
+<nav class="bottom-nav">
+  <button class="nav-item active" id="nav-home"     onclick="navTo('home')"     aria-label="ホーム">    <span class="nav-icon">🏠</span><span>ホーム</span></button>
+  <button class="nav-item"        id="nav-record"   onclick="navTo('record')"   aria-label="記録">      <span class="nav-icon">✏️</span><span>記録</span></button>
+  <button class="nav-item"        id="nav-history"  onclick="navTo('history')"  aria-label="履歴">      <span class="nav-icon">📖</span><span>履歴</span></button>
+  <button class="nav-item"        id="nav-settings" onclick="navTo('settings')" aria-label="管理">      <span class="nav-icon">⚙️</span><span>管理</span></button>
+</nav>
+<script>
+const KEY='jiko_koteikan_records';
+let currentScore=5,pendingSave=false,chartInst=null;
+function getRecords(){try{const r=localStorage.getItem(KEY);if(!r)return[];const p=JSON.parse(r);return Array.isArray(p)?p:(p.records||[]);}catch{return[];}}
+function setRecords(a){localStorage.setItem(KEY,JSON.stringify(a));}
+function todayStr(){const d=new Date();return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());}
+function pad(n){return String(n).padStart(2,'0');}
+function fmtDate(s){const[y,m,d]=s.split('-');return y+'年'+parseInt(m)+'月'+parseInt(d)+'日';}
+function daysBetween(a,b){return Math.round((new Date(b)-new Date(a))/86400000);}
+function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function toast(msg){document.querySelectorAll('.toast').forEach(e=>e.remove());const el=document.createElement('div');el.className='toast';el.textContent=msg;document.body.appendChild(el);setTimeout(()=>el.remove(),2600);}
+function navTo(page){document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));document.getElementById('page-'+page).classList.add('active');document.getElementById('nav-'+page).classList.add('active');if(page==='home')renderHome();if(page==='record')initForm();if(page==='history'){renderHistory();renderChart();}if(page==='settings')renderSettings();}
+function goRecord(){navTo('record');}
+function renderHome(){const recs=getRecords();const today=todayStr();const days=new Set(recs.map(r=>r.date));const n=days.size;document.getElementById('done-count').textContent=n;document.getElementById('progress-bar').style.width=Math.min(n/30*100,100)+'%';document.getElementById('remaining-label').textContent=n>=30?'🎉 達成！':`残り${30-n}日`;document.getElementById('streak-count').textContent=calcStreak(recs);const grid=document.getElementById('day-grid');grid.innerHTML='';for(let i=0;i<30;i++){const dot=document.createElement('div');dot.className='day-dot'+(i<n?' done':'')+(i===n&&n<30?' current':'');grid.appendChild(dot);}const hasTodayRec=recs.some(r=>r.date===today);document.getElementById('today-done-banner').style.display=hasTodayRec?'flex':'none';document.getElementById('home-cta-btn').textContent=hasTodayRec?'✏️ 今日の記録を編集する':'✏️ 今日の記録を入力する';renderMemory(recs,today);}
+function calcStreak(recs){const days=[...new Set(recs.map(r=>r.date))].sort().reverse();if(!days.length)return 0;const today=todayStr();let streak=0,check=today;for(const d of days){if(d===check){streak++;const prev=new Date(check);prev.setDate(prev.getDate()-1);check=prev.getFullYear()+'-'+pad(prev.getMonth()+1)+'-'+pad(prev.getDate());}else break;}return streak;}
+function renderMemory(recs,today){const past=recs.filter(r=>r.date!==today);const wrap=document.getElementById('memory-wrap');if(!past.length){wrap.innerHTML='';return;}const r=past[Math.floor(Math.random()*past.length)];const ago=daysBetween(r.date,today);wrap.innerHTML=`<div class="memory-card"><div class="memory-label">📮 過去の自分より（${ago}日前）</div><div class="memory-date">${fmtDate(r.date)}</div>${r.challenge?`<div class="memory-item"><strong>挑戦：</strong>${esc(r.challenge)}</div>`:''}${r.pride?`<div class="memory-item"><strong>誇れること：</strong>${esc(r.pride)}</div>`:''}<div class="memory-score">⭐ 自己評価 ${r.score}/10</div></div>`;}
+function initForm(){const today=todayStr();const recs=getRecords();const ex=recs.find(r=>r.date===today);document.getElementById('inp-date').value=today;document.getElementById('inp-challenge').value=ex?.challenge||'';document.getElementById('inp-learning').value=ex?.learning||'';document.getElementById('inp-pride').value=ex?.pride||'';currentScore=ex?.score??5;buildScoreBtns();}
+function buildScoreBtns(){const r1=document.getElementById('score-row1');const r2=document.getElementById('score-row2');r1.innerHTML=r2.innerHTML='';for(let i=1;i<=10;i++){const btn=document.createElement('button');btn.textContent=i;let cls='s-low';if(i>=4&&i<=6)cls='s-mid';else if(i>=7&&i<=8)cls='s-high';else if(i>=9)cls='s-top';btn.className=`score-btn ${cls}${i===currentScore?' selected':''}`;btn.setAttribute('aria-label',`自己評価${i}点`);btn.onclick=()=>selectScore(i);(i<=5?r1:r2).appendChild(btn);}}
+function selectScore(v){currentScore=v;document.querySelectorAll('.score-btn').forEach((b,i)=>{b.classList.toggle('selected',i+1===v);});}
+function saveRecord(){const date=document.getElementById('inp-date').value;const challenge=document.getElementById('inp-challenge').value.trim();const learning=document.getElementById('inp-learning').value.trim();const pride=document.getElementById('inp-pride').value.trim();if(!date){toast('⚠️ 日付を入力してください');return;}if(!challenge&&!learning&&!pride){toast('⚠️ 少なくとも1項目を入力してください');return;}if(currentScore<=3&&!pendingSave){pendingSave=true;document.getElementById('reframe-modal').classList.remove('hidden');return;}pendingSave=false;const recs=getRecords();const idx=recs.findIndex(r=>r.date===date);const entry={id:date,date,challenge,learning,pride,score:currentScore,createdAt:Date.now()};if(idx>=0)recs[idx]=entry;else recs.push(entry);setRecords(recs);toast('✅ 記録を保存しました！');if(new Set(recs.map(r=>r.date)).size>=30){document.getElementById('settings-achievement-banner').style.display='block';}renderHome();}
+function closeReframe(proceed){document.getElementById('reframe-modal').classList.add('hidden');if(proceed){pendingSave=true;saveRecord();}else pendingSave=false;}
+function renderHistory(){const recs=getRecords().sort((a,b)=>b.date.localeCompare(a.date));const list=document.getElementById('records-list');if(!recs.length){list.innerHTML=`<div class="empty-state"><div class="icon">📖</div><p>まだ記録がありません。<br>「今日の記録」から始めましょう。</p></div>`;return;}list.innerHTML=recs.map(r=>`<div class="record-card" onclick="toggleCard(this)"><div class="record-header"><span class="record-date">${fmtDate(r.date)}</span><span class="record-score-badge sc-${r.score}">${r.score}<span class="record-expand-icon">▼</span></span></div><div class="record-preview">${esc((r.challenge||r.pride||r.learning||'').substring(0,55))}…</div><div class="record-detail">${r.challenge?`<div class="detail-item"><div class="detail-label">挑戦</div><div class="detail-value">${esc(r.challenge)}</div></div>`:''}${r.learning?`<div class="detail-item"><div class="detail-label">学び</div><div class="detail-value">${esc(r.learning)}</div></div>`:''}${r.pride?`<div class="detail-item"><div class="detail-label">誇れること</div><div class="detail-value">${esc(r.pride)}</div></div>`:''}</div></div>`).join('');}
+function toggleCard(el){el.classList.toggle('expanded');}
+function renderChart(){const recs=getRecords().sort((a,b)=>a.date.localeCompare(b.date));const area=document.getElementById('chart-area');const empty=document.getElementById('chart-empty');if(recs.length<2){area.style.display='none';empty.style.display='block';return;}area.style.display='block';empty.style.display='none';const ctx=document.getElementById('score-chart').getContext('2d');if(chartInst)chartInst.destroy();chartInst=new Chart(ctx,{type:'line',data:{labels:recs.map(r=>{const[,m,d]=r.date.split('-');return`${parseInt(m)}/${parseInt(d)}`;}),datasets:[{label:'自己評価',data:recs.map(r=>r.score),borderColor:'#2563EB',backgroundColor:'rgba(37,99,235,0.07)',tension:0.35,fill:true,pointBackgroundColor:'#2563EB',pointRadius:5,pointHoverRadius:7,borderWidth:2.5}]},options:{responsive:true,maintainAspectRatio:false,scales:{y:{min:1,max:10,ticks:{stepSize:1,font:{size:11}},grid:{color:'rgba(0,0,0,0.05)'}},x:{ticks:{font:{size:10},maxRotation:45},grid:{display:false}}},plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`自己評価: ${c.parsed.y}/10`}}}}});}
+function renderSettings(){const recs=getRecords();const n=new Set(recs.map(r=>r.date)).size;document.getElementById('settings-achievement-banner').style.display=n>=30?'block':'none';}
+function exportCSV(){const recs=getRecords().sort((a,b)=>a.date.localeCompare(b.date));if(!recs.length){toast('⚠️ 記録がありません');return;}const hdr='日付,今日の挑戦,今日の学び,今日の誇れること,自己評価\n';const rows=recs.map(r=>[r.date,r.challenge,r.learning,r.pride,r.score].map(v=>`"${String(v||'').replace(/"/g,'""')}"`).join(',')).join('\n');dl('﻿'+hdr+rows,'鋼の自己肯定感_記録.csv','text/csv;charset=utf-8;');toast('📊 CSVをエクスポートしました');}
+function exportJSON(){const recs=getRecords();if(!recs.length){toast('⚠️ 記録がありません');return;}dl(JSON.stringify({records:recs,exportedAt:new Date().toISOString()},null,2),'鋼の自己肯定感_バックアップ.json','application/json');toast('💾 JSONバックアップをダウンロードしました');}
+function importJSON(e){const file=e.target.files[0];if(!file)return;if(!confirm('現在の記録をバックアップで上書きします。\nこの操作は元に戻せません。続けますか？')){e.target.value='';return;}const reader=new FileReader();reader.onload=ev=>{try{const d=JSON.parse(ev.target.result);const recs=Array.isArray(d)?d:(d.records||[]);if(!Array.isArray(recs))throw 0;setRecords(recs);toast(`✅ ${recs.length}件の記録を復元しました`);renderHome();}catch{toast('⚠️ ファイルの読み込みに失敗しました');}e.target.value='';};reader.readAsText(file);}
+function deleteAll(){if(!confirm('全ての記録を削除します。\nこの操作は元に戻せません。続けますか？'))return;localStorage.removeItem(KEY);toast('🗑️ 全記録を削除しました');renderHome();renderSettings();}
+function dl(content,name,type){const blob=new Blob([content],{type});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);}
+function openAchievement(){const recs=getRecords().sort((a,b)=>a.date.localeCompare(b.date));if(recs.length<1){toast('⚠️ まだ記録がありません');return;}const avg=(recs.reduce((s,r)=>s+r.score,0)/recs.length).toFixed(1);const first=recs[0];const mid=recs[Math.floor(recs.length/2)];const last=recs[recs.length-1];const isComplete=recs.length>=30;const mk=(label,r)=>r?`<div class="milestone-card"><div class="milestone-label">${label}（${fmtDate(r.date)}）　⭐ ${r.score}/10</div><div class="milestone-body">${r.challenge?`<div><strong>挑戦：</strong>${esc(r.challenge)}</div>`:''}${r.pride?`<div style="margin-top:5px"><strong>誇れること：</strong>${esc(r.pride)}</div>`:''}</div></div>`:'';document.getElementById('achievement-body').innerHTML=`<div class="achievement-header"><span class="trophy">${isComplete?'🏆':'📔'}</span><h2>${isComplete?'30日間、挑戦し続けました':'あなたの記録'}</h2><div class="avg">記録日数 ${new Set(recs.map(r=>r.date)).size} 日 ／ 平均自己評価 <strong>${avg} / 10</strong></div></div>${mk('1日目',first)}${first!==mid?mk('中間日',mid):''}${first!==last&&mid!==last?mk(isComplete?'30日目':'最新日',last):''}<div class="achievement-quote">あなたは売上や結果ではなく、<br><strong style="color:var(--primary)">挑戦し、向き合い、学び続けた自分</strong>を<br>${new Set(recs.map(r=>r.date)).size}日間、評価し続けました。</div><div style="height:18px"></div>`;document.getElementById('achievement-modal').classList.remove('hidden');}
+function maybeCloseAchievement(e){if(e.target===document.getElementById('achievement-modal'))closeAchievement();}
+function closeAchievement(){document.getElementById('achievement-modal').classList.add('hidden');}
+document.addEventListener('DOMContentLoaded',()=>{initForm();renderHome();const n=new Set(getRecords().map(r=>r.date)).size;if(n>=30)document.getElementById('settings-achievement-banner').style.display='block';});
+</script>
+</body>
+</html>
