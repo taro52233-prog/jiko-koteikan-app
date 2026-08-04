@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<style>
+  @page { size: A4; margin: 16mm 14mm; }
+  * { box-sizing: border-box; }
+  body {
+    font-family: "Noto Sans JP", "Hiragino Sans", "Meiryo", sans-serif;
+    color: #1f2937; font-size: 12px; line-height: 1.6;
+  }
+  .title { text-align: center; font-size: 26px; font-weight: 700; letter-spacing: 8px; margin-bottom: 18px; }
+  .head { width: 100%; }
+  .head td { vertical-align: top; }
+  .to { width: 55%; }
+  .to .company { font-size: 17px; font-weight: 700; border-bottom: 2px solid #1f2937; padding-bottom: 4px; display: inline-block; min-width: 60%; }
+  .to .person { margin-top: 4px; font-size: 13px; }
+  .meta { width: 45%; text-align: right; font-size: 12px; }
+  .meta div { margin-bottom: 2px; }
+  .from { margin-top: 6px; text-align: right; }
+  .from .fc { font-size: 14px; font-weight: 700; }
+  .lead { margin: 20px 0 8px; font-size: 12px; }
+  .total-box {
+    border: 2px solid #2563EB; border-radius: 6px; padding: 8px 14px; margin: 8px 0 16px;
+    display: flex; justify-content: space-between; align-items: center; background: #EFF6FF;
+  }
+  .total-box .lbl { font-size: 14px; font-weight: 700; }
+  .total-box .val { font-size: 22px; font-weight: 700; color: #1E3A8A; }
+  table.items { width: 100%; border-collapse: collapse; margin-top: 6px; }
+  table.items th { background: #1E3A8A; color: #fff; padding: 7px 8px; font-size: 12px; }
+  table.items td { border: 1px solid #cbd5e1; padding: 6px 8px; }
+  table.items td.l { text-align: left; }
+  table.items td.r { text-align: right; }
+  table.items td.c { text-align: center; }
+  .summary { width: 100%; margin-top: 10px; }
+  .summary td { vertical-align: top; }
+  .summary .left { width: 55%; padding-right: 20px; }
+  .summary .right { width: 45%; }
+  table.calc { width: 100%; border-collapse: collapse; }
+  table.calc td { padding: 5px 8px; border-bottom: 1px solid #e2e8f0; }
+  table.calc td.tl { text-align: left; color: #475569; }
+  table.calc td.tr { text-align: right; }
+  table.calc tr.grand td { border-top: 2px solid #1f2937; border-bottom: none; font-weight: 700; font-size: 15px; padding-top: 8px; }
+  .bank { border: 1px solid #cbd5e1; border-radius: 6px; padding: 10px 12px; font-size: 12px; }
+  .bank .h { font-weight: 700; margin-bottom: 4px; }
+  .note { margin-top: 16px; font-size: 11px; color: #475569; white-space: pre-wrap; }
+</style>
+</head>
+<body>
+  <div class="title">請 求 書</div>
+
+  <table class="head">
+    <tr>
+      <td class="to">
+        <div class="company"><?= m.toCompany ?> 御中</div>
+        <? if (m.toPerson) { ?><div class="person"><?= m.toPerson ?> 様</div><? } ?>
+      </td>
+      <td class="meta">
+        <div>請求番号：<?= m.number ?></div>
+        <div>発行日：<?= formatDateJp(m.issueDate) ?></div>
+        <div>支払期限：<?= formatDateJp(m.dueDate) ?></div>
+        <div class="from">
+          <div class="fc"><?= m.from.company ?></div>
+          <div><?= m.from.address ?></div>
+          <div>TEL: <?= m.from.tel ?></div>
+          <? if (m.from.regNo) { ?><div>登録番号: <?= m.from.regNo ?></div><? } ?>
+        </div>
+      </td>
+    </tr>
+  </table>
+
+  <div class="lead">
+    <? if (m.subject) { ?>件名：<?= m.subject ?><br><? } ?>
+    下記の通りご請求申し上げます。
+  </div>
+
+  <div class="total-box">
+    <span class="lbl">ご請求金額（税込）</span>
+    <span class="val">¥ <?= yen(m.total) ?> -</span>
+  </div>
+
+  <table class="items">
+    <thead>
+      <tr>
+        <th style="width:46%">品目</th>
+        <th style="width:12%">数量</th>
+        <th style="width:16%">単価</th>
+        <th style="width:10%">税率</th>
+        <th style="width:16%">金額</th>
+      </tr>
+    </thead>
+    <tbody>
+      <?!= lineRows ?>
+    </tbody>
+  </table>
+
+  <table class="summary">
+    <tr>
+      <td class="left">
+        <div class="bank">
+          <div class="h">お振込先</div>
+          <div><?= m.bank.bank ?> <?= m.bank.branch ?></div>
+          <div><?= m.bank.type ?> <?= m.bank.no ?></div>
+          <div>名義：<?= m.bank.holder ?></div>
+        </div>
+      </td>
+      <td class="right">
+        <table class="calc">
+          <tr><td class="tl">小計</td><td class="tr"><?= yen(m.subtotal) ?></td></tr>
+          <?!= taxRows ?>
+          <tr class="grand"><td class="tl">合計（税込）</td><td class="tr">¥ <?= yen(m.total) ?></td></tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+
+  <? if (m.note) { ?><div class="note">備考：<?= m.note ?></div><? } ?>
+</body>
+</html>

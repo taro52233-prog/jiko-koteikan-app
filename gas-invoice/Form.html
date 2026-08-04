@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<base target="_top">
+<style>
+  :root{
+    --primary:#2563EB; --primary-dark:#1E40AF; --primary-light:#DBEAFE;
+    --bg:#F0F5FF; --card:#fff; --text:#1E293B; --muted:#64748B; --border:#E2E8F0;
+    --success:#10B981; --danger:#EF4444; --radius:14px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+  body{font-family:-apple-system,"Hiragino Sans","Meiryo",sans-serif;background:var(--bg);color:var(--text);padding:0 0 40px;}
+  header{background:linear-gradient(135deg,#1E3A8A,#2563EB 60%,#3B82F6);color:#fff;padding:16px 18px;text-align:center;position:sticky;top:0;z-index:5;box-shadow:0 2px 16px rgba(30,58,138,.35);}
+  header h1{font-size:1.1rem;font-weight:800;letter-spacing:.5px;}
+  header p{font-size:.68rem;opacity:.85;margin-top:3px;}
+  .wrap{max-width:640px;margin:0 auto;padding:16px;}
+  .card{background:var(--card);border-radius:var(--radius);box-shadow:0 2px 10px rgba(37,99,235,.07);padding:16px;margin-bottom:14px;}
+  .card h2{font-size:.82rem;color:var(--primary-dark);font-weight:800;margin-bottom:12px;display:flex;align-items:center;gap:6px;}
+  label{display:block;font-size:.72rem;font-weight:700;color:var(--muted);margin:10px 0 4px;}
+  input,textarea,select{width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:10px;font-size:.9rem;font-family:inherit;background:#fff;color:var(--text);}
+  input:focus,textarea:focus,select:focus{outline:none;border-color:var(--primary);}
+  textarea{resize:vertical;min-height:60px;}
+  .row2{display:flex;gap:10px;}
+  .row2>div{flex:1;}
+  table.items{width:100%;border-collapse:collapse;margin-top:6px;font-size:.8rem;}
+  table.items th{text-align:left;color:var(--muted);font-size:.66rem;padding:4px 4px;font-weight:700;}
+  table.items td{padding:3px 3px;vertical-align:middle;}
+  table.items input{padding:8px 8px;font-size:.82rem;}
+  .qty,.unit,.rate{text-align:right;}
+  .del{background:#FEE2E2;color:var(--danger);border:none;border-radius:8px;width:32px;height:34px;font-size:1rem;cursor:pointer;font-weight:800;}
+  .addline{margin-top:8px;background:var(--primary-light);color:var(--primary-dark);border:none;padding:9px;width:100%;border-radius:10px;font-weight:800;font-size:.8rem;cursor:pointer;}
+  .totals{margin-top:12px;border-top:1.5px dashed var(--border);padding-top:10px;font-size:.8rem;}
+  .totals .line{display:flex;justify-content:space-between;padding:3px 0;color:var(--muted);}
+  .totals .grand{display:flex;justify-content:space-between;padding-top:8px;margin-top:4px;border-top:2px solid var(--text);font-size:1.05rem;font-weight:800;color:var(--primary-dark);}
+  .actions{display:flex;gap:10px;margin-top:6px;}
+  .btn{flex:1;padding:14px;border:none;border-radius:12px;font-size:.9rem;font-weight:800;cursor:pointer;}
+  .btn-save{background:#fff;color:var(--primary-dark);border:2px solid var(--primary);}
+  .btn-send{background:linear-gradient(135deg,#2563EB,#3B82F6);color:#fff;box-shadow:0 4px 14px rgba(37,99,235,.35);}
+  .btn:disabled{opacity:.5;cursor:default;}
+  .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#1E293B;color:#fff;padding:12px 20px;border-radius:12px;font-size:.82rem;font-weight:700;box-shadow:0 6px 20px rgba(0,0,0,.25);opacity:0;transition:opacity .25s,transform .25s;z-index:20;max-width:90%;text-align:center;}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(-6px);}
+  .toast.ok{background:#065F46;} .toast.err{background:#991B1B;}
+</style>
+</head>
+<body>
+  <header>
+    <h1>📄 請求書の作成・送信</h1>
+    <p>入力して「保存」または「作成して送信」を押してください</p>
+  </header>
+
+  <div class="wrap">
+    <div class="card">
+      <h2>🏢 宛先</h2>
+      <label>会社名 <span style="color:var(--danger)">*</span></label>
+      <input id="toCompany" placeholder="株式会社取引先">
+      <div class="row2">
+        <div><label>担当者名</label><input id="toPerson" placeholder="山田 太郎"></div>
+        <div><label>メールアドレス</label><input id="toEmail" type="email" placeholder="taro@example.com"></div>
+      </div>
+      <label>件名</label>
+      <input id="subject" placeholder="〇〇制作業務">
+    </div>
+
+    <div class="card">
+      <h2>🗓 日付</h2>
+      <div class="row2">
+        <div><label>発行日</label><input id="issueDate" type="date"></div>
+        <div><label>支払期限</label><input id="dueDate" type="date"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>🧾 明細</h2>
+      <table class="items">
+        <thead>
+          <tr><th style="width:42%">品目</th><th style="width:14%">数量</th><th style="width:22%">単価</th><th style="width:14%">税率</th><th></th></tr>
+        </thead>
+        <tbody id="itemBody"></tbody>
+      </table>
+      <button class="addline" onclick="addLine()">＋ 明細を追加</button>
+
+      <div class="totals">
+        <div class="line"><span>小計</span><span id="tSub">0</span></div>
+        <div class="line"><span>消費税</span><span id="tTax">0</span></div>
+        <div class="grand"><span>合計（税込）</span><span id="tTotal">¥0</span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>📝 備考</h2>
+      <textarea id="note" placeholder="振込手数料は貴社ご負担にてお願いいたします。"></textarea>
+    </div>
+
+    <div class="actions">
+      <button class="btn btn-save" id="btnSave" onclick="submit('save')">💾 保存のみ</button>
+      <button class="btn btn-send" id="btnSend" onclick="submit('send')">✉️ 作成して送信</button>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+<script>
+  var DEFAULT_RATE = 10;
+
+  function yen(n){ n=Math.round(n||0); return '¥'+String(n).replace(/\B(?=(\d{3})+(?!\d))/g,','); }
+  function num(v){ return Number(String(v).replace(/,/g,''))||0; }
+
+  function lineHtml(){
+    var o10=DEFAULT_RATE===10?' selected':'', o8=DEFAULT_RATE===8?' selected':'';
+    return '<tr>'+
+      '<td><input class="name" placeholder="品目名"></td>'+
+      '<td><input class="qty" type="number" value="1" min="0" oninput="calc()"></td>'+
+      '<td><input class="unit" type="number" value="0" min="0" oninput="calc()"></td>'+
+      '<td><select class="rate" onchange="calc()"><option value="10"'+o10+'>10%</option><option value="8"'+o8+'>8%</option></select></td>'+
+      '<td><button class="del" onclick="delLine(this)">×</button></td>'+
+    '</tr>';
+  }
+  function addLine(){
+    document.getElementById('itemBody').insertAdjacentHTML('beforeend', lineHtml());
+    calc();
+  }
+  function delLine(btn){
+    var tb=document.getElementById('itemBody');
+    if(tb.rows.length<=1){ return; }
+    btn.closest('tr').remove(); calc();
+  }
+  function calc(){
+    var rows=document.querySelectorAll('#itemBody tr');
+    var sub=0, tax=0, byRate={};
+    rows.forEach(function(tr){
+      var q=num(tr.querySelector('.qty').value);
+      var u=num(tr.querySelector('.unit').value);
+      var r=Number(tr.querySelector('.rate').value);
+      var amt=Math.round(q*u);
+      sub+=amt; byRate[r]=(byRate[r]||0)+amt;
+    });
+    Object.keys(byRate).forEach(function(r){ tax+=Math.floor(byRate[r]*Number(r)/100); });
+    document.getElementById('tSub').textContent=yen(sub);
+    document.getElementById('tTax').textContent=yen(tax);
+    document.getElementById('tTotal').textContent=yen(sub+tax);
+  }
+
+  function collect(){
+    var items=[];
+    document.querySelectorAll('#itemBody tr').forEach(function(tr){
+      var name=tr.querySelector('.name').value.trim();
+      if(!name) return;
+      items.push({
+        name:name,
+        qty:num(tr.querySelector('.qty').value),
+        unit:num(tr.querySelector('.unit').value),
+        rate:Number(tr.querySelector('.rate').value)
+      });
+    });
+    return {
+      toCompany:document.getElementById('toCompany').value.trim(),
+      toPerson:document.getElementById('toPerson').value.trim(),
+      toEmail:document.getElementById('toEmail').value.trim(),
+      subject:document.getElementById('subject').value.trim(),
+      issueDate:document.getElementById('issueDate').value,
+      dueDate:document.getElementById('dueDate').value,
+      note:document.getElementById('note').value.trim(),
+      items:items
+    };
+  }
+
+  function toast(msg, type){
+    var t=document.getElementById('toast');
+    t.textContent=msg; t.className='toast show '+(type||'');
+    setTimeout(function(){ t.className='toast'; }, 3800);
+  }
+  function busy(b){
+    document.getElementById('btnSave').disabled=b;
+    document.getElementById('btnSend').disabled=b;
+  }
+
+  function submit(action){
+    var data=collect();
+    if(!data.toCompany){ toast('宛先会社名を入力してください','err'); return; }
+    if(data.items.length===0){ toast('明細を1件以上入力してください','err'); return; }
+    if(action==='send' && !data.toEmail){ toast('送信には宛先メールが必要です','err'); return; }
+    data.action=action;
+    busy(true);
+    toast(action==='send'?'送信中…':'保存中…');
+    google.script.run
+      .withSuccessHandler(function(res){
+        busy(false);
+        if(res && res.ok){
+          toast((action==='send'?'送信しました':'保存しました')+'（'+res.number+' / '+yen(res.total)+'）','ok');
+          if(action==='send') resetForm();
+        }else{
+          toast('失敗：'+(res&&res.message?res.message:'不明なエラー'),'err');
+        }
+      })
+      .withFailureHandler(function(err){ busy(false); toast('エラー：'+err.message,'err'); })
+      .webCreateInvoice(data);
+  }
+
+  function resetForm(){
+    ['toCompany','toPerson','toEmail','subject','note'].forEach(function(id){ document.getElementById(id).value=''; });
+    document.getElementById('itemBody').innerHTML='';
+    addLine();
+  }
+
+  function today(offsetMonths){
+    var d=new Date(); if(offsetMonths) d.setMonth(d.getMonth()+offsetMonths);
+    return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2);
+  }
+
+  // 初期化
+  google.script.run.withSuccessHandler(function(cfg){
+    if(cfg && cfg.defaultRate) DEFAULT_RATE=cfg.defaultRate;
+  }).getFormDefaults();
+  document.getElementById('issueDate').value=today(0);
+  document.getElementById('dueDate').value=today(1);
+  addLine();
+</script>
+</body>
+</html>
