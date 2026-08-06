@@ -1,0 +1,7 @@
+node_modules/
+.env
+
+# 収集した個人情報・営業データはコミットしない
+data/*.csv
+data/previews/
+!data/.gitkeep

@@ -1,0 +1,19 @@
+{
+  "name": "funeral-home-outreach",
+  "version": "1.0.0",
+  "description": "堺市近辺の葬儀社リスト収集〜遺品整理サービスのメール営業（半自動パイプライン）",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "collect": "node src/collect.js",
+    "extract": "node src/extractEmails.js",
+    "generate": "node src/generate.js",
+    "send": "node src/send.js",
+    "send:live": "node src/send.js --live"
+  },
+  "dependencies": {
+    "cheerio": "^1.0.0",
+    "dotenv": "^16.4.5",
+    "nodemailer": "^6.9.14"
+  }
+}
