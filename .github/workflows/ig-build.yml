@@ -1,0 +1,87 @@
+name: IG 投稿を生成
+
+# 生成と公開を分けている理由:
+#   Instagram Graph API は「インターネットから到達できる公開URLの画像」しか受け付けない。
+#   よって 生成 → コミット&プッシュ → GitHub Pages 反映 → 公開 の順序が必須になる。
+on:
+  schedule:
+    # 09:00 JST（= 00:00 UTC）。昼の投稿までに承認する時間を確保する
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+    inputs:
+      count:
+        description: '生成する投稿数'
+        default: '1'
+      dry_run:
+        description: 'キュー投入まで行い、承認Issueは作らない'
+        type: boolean
+        default: false
+
+concurrency:
+  group: ig-pipeline          # build と publish が同時にキューを書かないようにする
+  cancel-in-progress: false
+
+permissions:
+  contents: write             # 生成物のコミット
+  issues: write               # 承認Issueの作成
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: auto-instagram/package-lock.json
+
+      # 日本語フォントが無いと生成画像が全て豆腐(□)になる
+      - name: 日本語フォントを導入
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends fonts-noto-cjk
+
+      - run: npm ci
+        working-directory: auto-instagram
+
+      - run: npm test
+        working-directory: auto-instagram
+
+      - name: 生成
+        working-directory: auto-instagram
+        env:
+          POST_MODE: ${{ vars.POST_MODE || 'review' }}
+          PUBLIC_BASE_URL: ${{ vars.PUBLIC_BASE_URL }}
+          RAKUTEN_APP_ID: ${{ secrets.RAKUTEN_APP_ID }}
+          RAKUTEN_AFFILIATE_ID: ${{ secrets.RAKUTEN_AFFILIATE_ID }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          ANTHROPIC_MODEL: ${{ vars.ANTHROPIC_MODEL || 'claude-sonnet-5' }}
+          RESEARCH_KEYWORDS: ${{ vars.RESEARCH_KEYWORDS }}
+          RESEARCH_GENRE_IDS: ${{ vars.RESEARCH_GENRE_IDS }}
+          RESEARCH_MIN_PRICE: ${{ vars.RESEARCH_MIN_PRICE }}
+          RESEARCH_MAX_PRICE: ${{ vars.RESEARCH_MAX_PRICE }}
+          BRAND_PERSONA: ${{ vars.BRAND_PERSONA }}
+          CONTENT_SLIDES: ${{ vars.CONTENT_SLIDES }}
+          MAX_POSTS_PER_DAY: ${{ vars.MAX_POSTS_PER_DAY }}
+          IG_USER_ID: ${{ secrets.IG_USER_ID }}
+          IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: node src/cli.js build --count "${{ inputs.count || 1 }}"
+
+      - name: 生成物をコミット
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/ig auto-instagram/data
+          if git diff --staged --quiet; then
+            echo "変更なし"
+            exit 0
+          fi
+          git commit -m "chore(ig): 投稿候補を生成 [skip ci]"
+          # 他ジョブのコミットと衝突しうるのでリベースしてから押す
+          for i in 1 2 3 4; do
+            git pull --rebase origin "${GITHUB_REF_NAME}" && git push origin "HEAD:${GITHUB_REF_NAME}" && exit 0
+            sleep $((2 ** i))
+          done
+          exit 1

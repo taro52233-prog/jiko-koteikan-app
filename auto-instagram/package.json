@@ -1,0 +1,23 @@
+{
+  "name": "auto-instagram",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "商品リサーチ → Instagram投稿生成 → 定時自動投稿 パイプライン",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "research": "node src/cli.js research",
+    "build": "node src/cli.js build",
+    "publish": "node src/cli.js publish",
+    "run": "node src/cli.js run",
+    "dry": "node src/cli.js run --dry-run",
+    "doctor": "node src/cli.js doctor",
+    "token:check": "node scripts/check-token.js",
+    "token:exchange": "node scripts/exchange-token.js",
+    "test": "node --test test/*.test.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.60.0",
+    "@napi-rs/canvas": "^1.0.0"
+  }
+}
