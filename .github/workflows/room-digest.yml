@@ -57,6 +57,7 @@ jobs:
           ROOM_POSTS_PER_DAY: ${{ vars.ROOM_POSTS_PER_DAY || '2' }}
           ROOM_MAX_CHARS: ${{ vars.ROOM_MAX_CHARS || '80' }}
           KAIMAWARI_COUNT: ${{ vars.KAIMAWARI_COUNT || '10' }}
+          ROOM_WRITING_MODE: ${{ vars.ROOM_WRITING_MODE || 'auto' }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           DRY_RUN: ${{ inputs.dry_run }}
         run: node src/cli.js digest

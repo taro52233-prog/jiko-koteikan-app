@@ -49,7 +49,18 @@ test('カルーセル画像が日本語込みで生成できる', async (t) => {
   const outDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ig-render-'));
   const cfg = { width: 1080, height: 1350, accent: '#2563EB', accent2: '#0EA5E9', fontPathBold: '', fontPathRegular: '' };
 
-  const { files } = await renderCarousel({ item, content, cfg, outDir, slug: 'test-slug' });
+  // シーン画像あり（自前生成の想定）と無しの両方を出す
+  const sceneBuffer = (() => {
+    const c = createCanvas(1024, 1536);
+    const g = c.getContext('2d');
+    const grad = g.createLinearGradient(0, 0, 0, 1536);
+    grad.addColorStop(0, '#F1E9DC'); grad.addColorStop(1, '#8A9BA8');
+    g.fillStyle = grad; g.fillRect(0, 0, 1024, 1536);
+    g.fillStyle = 'rgba(255,255,255,0.35)'; g.fillRect(0, 900, 1024, 636);
+    return c.encodeSync('jpeg', 88);
+  })();
+
+  const { files } = await renderCarousel({ item, content, cfg, outDir, slug: 'test-slug', sceneBuffer });
 
   assert.equal(files.length, 5, 'カバー + 本文3枚 + CTA = 5枚');
   for (const f of files) {
@@ -61,4 +72,9 @@ test('カルーセル画像が日本語込みで生成できる', async (t) => {
   }
   // 目視確認用に残す
   fs.cpSync(path.join(outDir, 'test-slug'), path.join(process.cwd(), 'out', 'sample'), { recursive: true });
+
+  // シーン画像が無い場合もクラッシュせず表紙を作れること
+  const plain = await renderCarousel({ item, content, cfg, outDir, slug: 'no-scene' });
+  assert.equal(plain.files.length, 5);
+  fs.cpSync(path.join(outDir, 'no-scene'), path.join(process.cwd(), 'out', 'no-scene'), { recursive: true });
 });

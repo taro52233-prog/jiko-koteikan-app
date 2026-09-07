@@ -95,7 +95,14 @@ export function buildSchema(slides) {
       caption: { type: 'string', description: 'Instagram本文。1800文字以内' },
       hashtags: { type: 'array', items: { type: 'string' }, description: '#付きの文字列' },
       altText: { type: 'string', description: '視覚障害者向けの代替テキスト。100文字以内' },
+      scenePrompt: {
+        type: 'string',
+        description:
+          '表紙に敷く使用シーン画像を生成するための英語プロンプト（1〜2文）。'
+          + '商品が解決する悩みが消えた「生活の一場面」を写真的に描写する。'
+          + '商品そのもの・ブランドロゴ・文字は描かないこと。人物の顔は入れない。',
+      },
     },
-    required: ['hook', 'slides', 'cta', 'caption', 'hashtags', 'altText'],
+    required: ['hook', 'slides', 'cta', 'caption', 'hashtags', 'altText', 'scenePrompt'],
   };
 }

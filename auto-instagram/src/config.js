@@ -51,6 +51,8 @@ export const config = {
     events: path.join(ROOT, 'data', 'rakuten-events.json'),
     /** 楽天ROOM の実施ログ（ランクアップ進捗の自己申告） */
     roomLog: path.join(ROOT, 'data', 'room-log.json'),
+    /** 実際に所有・使用している商品（ここに登録した物だけ使用体験として書ける） */
+    owned: path.join(ROOT, 'data', 'owned-items.json'),
   },
 
   /** 生成物の公開ベースURL（GitHub Pages）。例: https://<user>.github.io/<repo>/ig */
@@ -105,6 +107,31 @@ export const config = {
     roomPostsPerDay: num(env.ROOM_POSTS_PER_DAY, 2),
     /** お買い物マラソン期に出す買い回りリストの件数（10ショップで倍率上限） */
     kaimawariCount: num(env.KAIMAWARI_COUNT, 10),
+    /**
+     * 紹介文の書き方。
+     * pain-first = 既定。ペインは一人称で実感を込めて書き、解決は推量で書く。
+     *              「使ったあとの自分」を想像させつつ、使用体験は主張しない。
+     * auto       = data/owned-items.json に登録済みの商品だけ使用体験として書き、
+     *              未登録の商品は自動的に pain-first に落とす。
+     */
+    writingMode: (env.ROOM_WRITING_MODE || 'auto').toLowerCase(),
+  },
+
+  /** 使用シーン画像の生成（OpenAI gpt-image-1） */
+  scene: {
+    enabled: bool(env.SCENE_IMAGE_ENABLED, false),
+    apiKey: env.OPENAI_API_KEY || '',
+    baseUrl: (env.OPENAI_BASE_URL || 'https://api.openai.com').replace(/\/+$/, ''),
+    model: env.SCENE_IMAGE_MODEL || 'gpt-image-1',
+    /** gpt-image-1 が受け付けるのは 1024x1024 / 1024x1536 / 1536x1024 / auto */
+    size: env.SCENE_IMAGE_SIZE || '1024x1536',
+    quality: env.SCENE_IMAGE_QUALITY || 'medium',
+    /**
+     * 生成画像に「AI生成」の小さな表示を焼き込む。
+     * 実写と誤認させないための措置。既定で有効。
+     */
+    label: bool(env.SCENE_IMAGE_LABEL, true),
+    labelText: env.SCENE_IMAGE_LABEL_TEXT || 'AI生成イメージ',
   },
 
   image: {

@@ -84,7 +84,14 @@ function candidateSection(candidates) {
       item.images?.[0] ? `<img src="${item.images[0]}" width="220">` : '',
       `${yen(item.price)}　★${item.reviewAverage}（${item.reviewCount.toLocaleString('ja-JP')}件）　${item.shopName}`,
       `🔗 [楽天ROOMに追加する](${item.url})`,
-      `> **狙い**: ${content.benefit}\n> **刺さる相手**: ${content.targetPersona}`,
+      [
+        content.pain ? `> **ペイン**: ${content.pain}` : '',
+        `> **狙い**: ${content.benefit}`,
+        `> **刺さる相手**: ${content.targetPersona}`,
+        content.writingMode === 'owned'
+          ? '> 🟢 **使用体験モード**（`owned-items.json` に登録済み）'
+          : '> ⚪️ ペインファースト（未所有のため使用体験は書いていません）',
+      ].filter(Boolean).join('\n'),
       variants,
     );
   });

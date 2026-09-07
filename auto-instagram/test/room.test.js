@@ -5,6 +5,11 @@ import { RoomLog, rankProgress, postingStreak, nextAction, ORIGINAL_PHOTO_TARGET
 import { sanitizeRoom } from '../src/content/room.js';
 import { selectKaimawari, scoreItem, PROFILES } from '../src/research/score.js';
 import { buildDigest, LOG_MARKERS } from '../src/room/digest.js';
+import { OwnedItems } from '../src/store/owned.js';
+import { buildScenePrompt } from '../src/image/scene.js';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 
 const jst = (s) => new Date(`${s}T00:00:00Z`);
 
@@ -96,20 +101,46 @@ test('買い回りリストは価格帯外の商品を含めない', () => {
 /* ---------------- 紹介文の検品 ---------------- */
 
 const roomOpts = { maxChars: 80, hashtagCount: 5, disclosureRequired: true, disclosureText: '#PR #広告' };
+const ownedOpts = { ...roomOpts, owned: true };
 
-test('使ったことがある体の表現を書き換える', () => {
+test('未所有の商品では、使ったことがある体の表現を落とす', () => {
   const out = sanitizeRoom({
     variants: [{ angle: '体験', text: '毎日愛用しています。とても良いです。' }], hashtags: [],
   }, roomOpts);
   assert.ok(!out.variants[0].text.includes('愛用して'), out.variants[0].text);
-  assert.ok(out.variants[0].text.includes('気になっています'));
+  assert.equal(out.writingMode, 'pain-first');
 });
 
-test('レビュー本文を引用したかのような表現を書き換える', () => {
+test('未所有の商品では、断定の完了形を推量に落とす', () => {
   const out = sanitizeRoom({
-    variants: [{ angle: '口コミ', text: '口コミによると洗い上がりが良いそうです。' }], hashtags: [],
+    variants: [{ angle: '結果', text: '朝の支度が楽になりました。' }], hashtags: [],
   }, roomOpts);
-  assert.ok(!out.variants[0].text.includes('口コミによると'), out.variants[0].text);
+  assert.ok(!out.variants[0].text.includes('楽になりました'), out.variants[0].text);
+  assert.ok(out.variants[0].text.includes('変わりそう'));
+});
+
+test('所有登録済みの商品では、使用体験の表現をそのまま通す', () => {
+  const text = '半年愛用しています。朝の支度が楽になりました。';
+  const out = sanitizeRoom({ variants: [{ angle: '体験', text }], hashtags: [] }, ownedOpts);
+  assert.equal(out.variants[0].text, text, '本人の実体験なので書き換えない');
+  assert.equal(out.writingMode, 'owned');
+  assert.equal(out.variants[0].owned, true);
+});
+
+test('所有登録済みでも、根拠のない最上級表現は落とす', () => {
+  const out = sanitizeRoom({
+    variants: [{ angle: '体験', text: '日本一の使い心地でした。' }], hashtags: [],
+  }, ownedOpts);
+  assert.ok(!out.variants[0].text.includes('日本一'));
+});
+
+test('レビュー本文を引用したかのような表現は、どちらのモードでも書き換える', () => {
+  for (const opts of [roomOpts, ownedOpts]) {
+    const out = sanitizeRoom({
+      variants: [{ angle: '口コミ', text: '口コミによると洗い上がりが良いそうです。' }], hashtags: [],
+    }, opts);
+    assert.ok(!out.variants[0].text.includes('口コミによると'), out.variants[0].text);
+  }
 });
 
 test('80文字を超える紹介文は必ず丸められる', () => {
@@ -122,6 +153,46 @@ test('ステマ規制の表示を投稿用テキストに必ず付ける', () =>
   const out = sanitizeRoom({ variants: [{ angle: 'a', text: 'いい感じです' }], hashtags: [] }, roomOpts);
   assert.ok(out.variants[0].posting.includes('#PR'));
   assert.ok(!out.variants[0].text.includes('#PR'), '本文自体は汚さない');
+});
+
+/* ---------------- 所有商品の登録 ---------------- */
+
+test('メモが空の登録は無効にする（体験の中身が無いため）', () => {
+  const file = path.join(os.tmpdir(), `owned-${Date.now()}.json`);
+  fs.writeFileSync(file, JSON.stringify({ items: [
+    { match: '珪藻土バスマット', note: '3ヶ月使用。乾きは早いが端が欠けやすい' },
+    { match: 'タンブラー', note: '' },        // メモ無し → 無効
+    { match: '', note: 'メモだけ' },           // 対象不明 → 無効
+  ] }));
+  const owned = OwnedItems.load(file);
+  fs.unlinkSync(file);
+  assert.equal(owned.items.length, 1);
+  assert.equal(owned.items[0].match, '珪藻土バスマット');
+});
+
+test('商品名・itemCode の部分一致で所有登録を見つける', () => {
+  const owned = new OwnedItems([{ match: '珪藻土バスマット', note: 'メモ' }]);
+  assert.ok(owned.find({ id: 'shop:1', name: '珪藻土バスマット 速乾 Lサイズ' }));
+  assert.equal(owned.find({ id: 'shop:2', name: 'ステンレスタンブラー' }), null);
+});
+
+/* ---------------- シーン画像 ---------------- */
+
+test('シーンプロンプトに商品を描かせない制約を必ず足す', () => {
+  const p = buildScenePrompt('A quiet bathroom in morning light.');
+  assert.ok(p.includes('brand logo'), '制約が付いている');
+  assert.ok(p.includes('readable text'));
+  assert.ok(p.startsWith('A quiet bathroom'));
+});
+
+test('シーンプロンプトから商品名を取り除く（ブランド性が出るため）', () => {
+  const p = buildScenePrompt('A bathroom with 珪藻土バスマット on the floor.', { itemName: '珪藻土バスマット 速乾' });
+  assert.ok(!p.includes('珪藻土バスマット'), p);
+});
+
+test('空のシーンプロンプトは null を返す', () => {
+  assert.equal(buildScenePrompt(''), null);
+  assert.equal(buildScenePrompt('   '), null);
 });
 
 /* ---------------- ランク進捗 ---------------- */
@@ -202,4 +273,81 @@ test('イベントが無い日の digest は買い回りを出さない', () => 
   const { body } = buildDigest({ plan, candidates: [], tomorrow: [], kaimawari: null, progress: rankProgress(log, { today: '2026-09-08' }) });
   assert.ok(!body.includes('買い回りリスト'));
   assert.ok(body.includes('通常運転'));
+});
+
+/* ---------------- シーン画像の生成（OpenAI APIはモック） ---------------- */
+
+test('OpenAI画像APIを正しい形で呼び、画像を目的の比率に整える', async (t) => {
+  const { createCanvas } = await import('@napi-rs/canvas');
+  const http = await import('node:http');
+  const { generateSceneImage } = await import('../src/image/scene.js');
+
+  const generated = createCanvas(1024, 1536);
+  const g = generated.getContext('2d');
+  g.fillStyle = '#C8D3DE'; g.fillRect(0, 0, 1024, 1536);
+  const b64 = generated.encodeSync('jpeg', 85).toString('base64');
+
+  let received = null;
+  const server = http.createServer((req, res) => {
+    const chunks = [];
+    req.on('data', (c) => chunks.push(c));
+    req.on('end', () => {
+      received = { path: req.url, auth: req.headers.authorization, body: JSON.parse(Buffer.concat(chunks)) };
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ data: [{ b64_json: b64 }] }));
+    });
+  });
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
+  t.after(() => server.close());
+
+  const cfg = {
+    enabled: true, apiKey: 'sk-test', baseUrl: `http://127.0.0.1:${server.address().port}`,
+    model: 'gpt-image-1', size: '1024x1536', quality: 'medium',
+    label: true, labelText: 'AI生成イメージ',
+  };
+
+  const buf = await generateSceneImage(
+    'A quiet bathroom in soft morning light, bare feet on a dry mat.',
+    cfg, { width: 1080, height: 1350, itemName: '珪藻土バスマット' });
+
+  assert.ok(buf, '画像バッファが返る');
+  assert.equal(buf[0], 0xff); assert.equal(buf[1], 0xd8);   // JPEG
+  assert.equal(received.path, '/v1/images/generations');
+  assert.equal(received.auth, 'Bearer sk-test');
+  assert.equal(received.body.model, 'gpt-image-1');
+  assert.equal(received.body.size, '1024x1536');
+  assert.equal(received.body.n, 1);
+  assert.ok(received.body.prompt.includes('brand logo'), '商品を描かせない制約が送られている');
+
+  // 出力が指定サイズに整っていること
+  const { loadImage } = await import('@napi-rs/canvas');
+  const out = await loadImage(buf);
+  assert.equal(out.width, 1080);
+  assert.equal(out.height, 1350);
+});
+
+test('SCENE_IMAGE_ENABLED が false なら API を呼ばない', async () => {
+  const { generateSceneImage } = await import('../src/image/scene.js');
+  const r = await generateSceneImage('anything', { enabled: false }, { width: 100, height: 100 });
+  assert.equal(r, null);
+});
+
+test('APIキーが無ければ null を返す（投稿全体は止めない）', async () => {
+  const { generateSceneImage } = await import('../src/image/scene.js');
+  const r = await generateSceneImage('anything', { enabled: true, apiKey: '' }, { width: 100, height: 100 });
+  assert.equal(r, null);
+});
+
+test('API が失敗しても null を返して投稿を止めない', async (t) => {
+  const http = await import('node:http');
+  const { generateSceneImage } = await import('../src/image/scene.js');
+  const server = http.createServer((req, res) => { res.writeHead(400); res.end('{"error":"bad"}'); });
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
+  t.after(() => server.close());
+
+  const r = await generateSceneImage('x', {
+    enabled: true, apiKey: 'k', baseUrl: `http://127.0.0.1:${server.address().port}`,
+    model: 'gpt-image-1', size: '1024x1536', quality: 'medium', label: false,
+  }, { width: 200, height: 250 });
+  assert.equal(r, null);
 });

@@ -65,6 +65,13 @@ jobs:
           MAX_POSTS_PER_DAY: ${{ vars.MAX_POSTS_PER_DAY }}
           IG_USER_ID: ${{ secrets.IG_USER_ID }}
           IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
+          # 使用シーン画像（テキストのみから生成。楽天の商品画像は入力しない）
+          SCENE_IMAGE_ENABLED: ${{ vars.SCENE_IMAGE_ENABLED || 'false' }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          SCENE_IMAGE_MODEL: ${{ vars.SCENE_IMAGE_MODEL || 'gpt-image-1' }}
+          SCENE_IMAGE_SIZE: ${{ vars.SCENE_IMAGE_SIZE || '1024x1536' }}
+          SCENE_IMAGE_QUALITY: ${{ vars.SCENE_IMAGE_QUALITY || 'medium' }}
+          SCENE_IMAGE_LABEL: ${{ vars.SCENE_IMAGE_LABEL || 'true' }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           DRY_RUN: ${{ inputs.dry_run }}
         run: node src/cli.js build --count "${{ inputs.count || 1 }}"

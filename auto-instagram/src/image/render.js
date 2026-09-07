@@ -49,63 +49,85 @@ function drawPill(ctx, text, x, y, { bg, fg, size = 30, padX = 24, h = 56 }) {
   return w;
 }
 
-/** 1枚目: 商品写真を全面に敷き、下部グラデーションの上に見出しを置く */
-function renderCover(cfg, { hook, item, image }) {
+/**
+ * 1枚目（表紙）。
+ *
+ * 楽天アフィリエイトが提供する商品画像は、サイズ変更や周辺への装飾は認められる一方、
+ * 画像そのものの切り取りや、画像の上に直接文字を載せることは認められていない。
+ * そのため表紙は3段構成にして、**文字は必ず商品画像の外**に置いている。
+ *   上段: シーン画像（自前生成）または単色グラデ ＋ 見出し   ← 文字を載せてよい領域
+ *   中段: 商品画像を contain で配置（無加工・無文字）
+ *   下段: 価格・レビュー・スワイプ導線
+ */
+function renderCover(cfg, { hook, item, image, scene }) {
   const { canvas, ctx } = newCanvas(cfg);
   const W = cfg.width, H = cfg.height;
+  const HEAD_H = Math.round(H * 0.415);   // 上段（見出し）
+  const FOOT_H = Math.round(H * 0.20);    // 下段（価格）
+  const PROD_TOP = HEAD_H;
+  const PROD_H = H - HEAD_H - FOOT_H;
 
-  if (image) drawImageCover(ctx, image, 0, 0, W, H);
-  else verticalGradient(ctx, 0, 0, W, H, [[0, cfg.accent], [1, cfg.accent2]]);
+  // ---- 上段: シーン画像 or グラデーション ----
+  if (scene) drawImageCover(ctx, scene, 0, 0, W, HEAD_H);
+  else verticalGradient(ctx, 0, 0, W, HEAD_H, [[0, cfg.accent], [1, cfg.accent2]]);
 
-  // 見出しの可読性を担保する暗幕
-  verticalGradient(ctx, 0, H * 0.32, W, H * 0.68, [
-    [0, 'rgba(6,15,35,0)'], [0.45, 'rgba(6,15,35,0.72)'], [1, 'rgba(6,15,35,0.94)'],
+  // 見出しの可読性を担保する暗幕（自前画像の上なので問題ない）
+  verticalGradient(ctx, 0, 0, W, HEAD_H, [
+    [0, 'rgba(6,15,35,0.62)'], [0.4, 'rgba(6,15,35,0.42)'], [1, 'rgba(6,15,35,0.86)'],
   ]);
-  verticalGradient(ctx, 0, 0, W, 260, [[0, 'rgba(6,15,35,0.55)'], [1, 'rgba(6,15,35,0)']]);
 
   drawPrBadge(ctx, cfg, { dark: true });
 
   // レビュー実績のバッジ（実データのみ）
   let bx = 68;
-  bx += drawPill(ctx, `★ ${item.reviewAverage.toFixed(2)}`, bx, 56,
+  bx += drawPill(ctx, `★ ${item.reviewAverage.toFixed(2)}`, bx, 44,
     { bg: 'rgba(255,255,255,0.94)', fg: INK }) + 14;
-  drawPill(ctx, `レビュー${item.reviewCount.toLocaleString('ja-JP')}件`, bx, 56,
-    { bg: 'rgba(255,255,255,0.20)', fg: '#FFFFFF' });
+  drawPill(ctx, `レビュー${item.reviewCount.toLocaleString('ja-JP')}件`, bx, 44,
+    { bg: 'rgba(255,255,255,0.22)', fg: '#FFFFFF' });
 
-  // 大見出し
-  ctx.font = font(88, 'bold');
+  ctx.font = font(76, 'bold');
   const titleLines = wrapText(ctx, hook.title, W - 136, 3);
-  const titleH = titleLines.length * 108;
-  ctx.font = font(38, 'regular');
+  ctx.font = font(34, 'regular');
   const subLines = wrapText(ctx, hook.sub, W - 136, 2);
-  const subH = subLines.length * 54;
 
-  const blockTop = H - 150 - titleH - subH - 40;
+  const blockH = titleLines.length * 94 + 20 + subLines.length * 48;
+  const blockTop = HEAD_H - 52 - blockH;
+
   ctx.fillStyle = '#FFFFFF';
-  ctx.font = font(88, 'bold');
-  ctx.shadowColor = 'rgba(0,0,0,0.45)';
-  ctx.shadowBlur = 18;
-  titleLines.forEach((l, i) => ctx.fillText(l, 68, blockTop + i * 108));
+  ctx.font = font(76, 'bold');
+  ctx.shadowColor = 'rgba(0,0,0,0.4)';
+  ctx.shadowBlur = 16;
+  titleLines.forEach((l, i) => ctx.fillText(l, 68, blockTop + i * 94));
   ctx.shadowBlur = 0;
 
-  ctx.font = font(38, 'regular');
+  ctx.font = font(34, 'regular');
   ctx.fillStyle = 'rgba(255,255,255,0.88)';
-  subLines.forEach((l, i) => ctx.fillText(l, 68, blockTop + titleH + 24 + i * 54));
+  subLines.forEach((l, i) => ctx.fillText(l, 68, blockTop + titleLines.length * 94 + 20 + i * 48));
 
-  // 価格
-  const price = `${item.price.toLocaleString('ja-JP')}円`;
-  ctx.font = font(30, 'regular');
-  ctx.fillStyle = 'rgba(255,255,255,0.7)';
-  ctx.fillText('投稿時点', 68, H - 118);
-  ctx.font = font(56, 'bold');
+  // ---- 中段: 商品画像（切り取らず、文字も載せない） ----
   ctx.fillStyle = '#FFFFFF';
-  ctx.fillText(price, 68, H - 84);
+  ctx.fillRect(0, PROD_TOP, W, PROD_H);
+  if (image) drawImageContain(ctx, image, 56, PROD_TOP + 32, W - 112, PROD_H - 64);
 
-  // スワイプ導線
+  // ---- 下段: 価格・導線 ----
+  const footTop = PROD_TOP + PROD_H;
+  ctx.fillStyle = '#F8FAFC';
+  ctx.fillRect(0, footTop, W, FOOT_H);
+  ctx.fillStyle = '#E2E8F0';
+  ctx.fillRect(0, footTop, W, 2);
+
+  ctx.font = font(26, 'regular');
+  ctx.fillStyle = MUTED;
+  ctx.fillText('投稿時点の価格', 68, footTop + 52);
+
+  ctx.font = font(58, 'bold');
+  ctx.fillStyle = INK;
+  ctx.fillText(`${item.price.toLocaleString('ja-JP')}円`, 68, footTop + 92);
+
   ctx.font = font(30, 'bold');
   ctx.textAlign = 'right';
-  ctx.fillStyle = 'rgba(255,255,255,0.85)';
-  ctx.fillText('スワイプ →', W - 68, H - 74);
+  ctx.fillStyle = cfg.accent;
+  ctx.fillText('スワイプ →', W - 68, footTop + 106);
   ctx.textAlign = 'left';
 
   return canvas;
@@ -124,14 +146,15 @@ function renderBody(cfg, { slide, index, total, image }) {
   ctx.fillStyle = '#FFFFFF';
   ctx.fillRect(0, imgH, W, H - imgH);
 
-  // 番号バッジ
+  // 番号バッジ。商品画像は 40..imgH-40 に収まるので、その外側に置く
+  // （楽天提供画像の上に装飾を載せないため）
   ctx.fillStyle = cfg.accent;
-  roundRect(ctx, 68, imgH - 44, 96, 88, 20);
+  roundRect(ctx, 68, imgH - 20, 96, 88, 20);
   ctx.fill();
   ctx.fillStyle = '#FFFFFF';
   ctx.font = font(46, 'bold');
   ctx.textAlign = 'center';
-  ctx.fillText(String(index).padStart(2, '0'), 68 + 48, imgH - 44 + 20);
+  ctx.fillText(String(index).padStart(2, '0'), 68 + 48, imgH - 20 + 20);
   ctx.textAlign = 'left';
 
   // テキスト量に関わらず余白が均等になるよう、下半分の中央に寄せる
@@ -140,7 +163,7 @@ function renderBody(cfg, { slide, index, total, image }) {
   ctx.font = font(38, 'regular');
   const bodyH = wrapText(ctx, slide.body, W - 136, 5).length * 58;
   const gap = 28;
-  const textTop = imgH + 84 + Math.max(0, ((H - imgH - 84 - 110) - (titleH + gap + bodyH)) / 2);
+  const textTop = imgH + 108 + Math.max(0, ((H - imgH - 84 - 110) - (titleH + gap + bodyH)) / 2);
 
   let y = textTop;
   ctx.fillStyle = INK;
@@ -229,7 +252,7 @@ async function preloadImages(urls, need) {
  * カルーセル一式を JPEG で書き出す。
  * @returns {Promise<{files:string[], slug:string}>}
  */
-export async function renderCarousel({ item, content, cfg, outDir, slug }) {
+export async function renderCarousel({ item, content, cfg, outDir, slug, sceneBuffer = null }) {
   registerFonts(cfg);
   const total = 2 + content.slides.length;
   const images = await preloadImages(item.images, Math.min(4, total));
@@ -238,8 +261,15 @@ export async function renderCarousel({ item, content, cfg, outDir, slug }) {
   const dir = path.join(outDir, slug);
   fs.mkdirSync(dir, { recursive: true });
 
+  // シーン画像は自前生成なので、その上に見出しを重ねてよい
+  let scene = null;
+  if (sceneBuffer) {
+    try { scene = await loadImage(sceneBuffer); }
+    catch (e) { warn(`シーン画像の読み込みに失敗（グラデーションで代替）: ${e.message}`); }
+  }
+
   const canvases = [
-    renderCover(cfg, { hook: content.hook, item, image: images[0] }),
+    renderCover(cfg, { hook: content.hook, item, image: images[0], scene }),
     ...content.slides.map((slide, i) =>
       renderBody(cfg, { slide, index: i + 2, total, image: images[(i + 1) % images.length] })),
     renderCta(cfg, { cta: content.cta, item, image: images[0] }),

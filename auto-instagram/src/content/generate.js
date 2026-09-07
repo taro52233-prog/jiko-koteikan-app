@@ -12,7 +12,15 @@ export function sanitize(draft, { item, maxHashtags, disclosureRequired, disclos
 
   // 1. 禁止表現の機械的な除去（プロンプトだけに頼らない）
   const banned = /(必ず痩せ|絶対に治|完治|日本一|世界一|業界No\.?1|最安値保証)/g;
-  const strip = (s) => String(s || '').replace(banned, '').replace(/\s{2,}/g, ' ').trim();
+  // 使っていない商品について使用体験を主張する表現。景表法（優良誤認）に触れるため機械的に落とす
+  const claimsUse = /(愛用して(います|いる|る)|リピートして(います|いる|る)|使ってみたところ|使ってみたら|届きました|買ってよかった)/g;
+  const claimsResult = /(変わりました|なくなりました|解決しました|楽になりました|快適になりました)/g;
+  const strip = (s) => String(s || '')
+    .replace(banned, '')
+    .replace(claimsUse, '気になっていて')
+    .replace(claimsResult, '変わりそう')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
   out.hook.title = strip(out.hook.title);
   out.hook.sub = strip(out.hook.sub);
   out.slides = out.slides.map((s) => ({ title: strip(s.title), body: strip(s.body) }));
@@ -45,6 +53,7 @@ export function sanitize(draft, { item, maxHashtags, disclosureRequired, disclos
   out.fullCaption = `${out.caption}\n\n${tagBlock}`;
 
   out.altText = String(out.altText || `${item.name} の商品紹介画像`).slice(0, 100);
+  out.scenePrompt = String(out.scenePrompt ?? '').trim();
   return out;
 }
 

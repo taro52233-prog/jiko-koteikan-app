@@ -21,6 +21,8 @@ import { InstagramClient } from './publish/instagram.js';
 import { openReviewIssue, fetchApprovedIssueNumbers, closeIssue, reportFailure, createIssue } from './publish/review.js';
 import { todaysPlan, ymd } from './room/calendar.js';
 import { RoomLog, rankProgress } from './room/rank.js';
+import { OwnedItems } from './store/owned.js';
+import { generateSceneImage } from './image/scene.js';
 import { buildDigest } from './room/digest.js';
 import { jstStamp, log, warn, sleep, nowJst } from './util.js';
 
@@ -58,8 +60,15 @@ export async function build({ dryRun = false, count = 1 } = {}) {
       log(`▶ ${item.name} (score=${item.score})`);
 
       const content = await generateContent(item, config.content);
+
+      // 表紙に敷く使用シーン画像。楽天の商品画像は入力せず、テキストから新規生成する
+      // （提供画像の加工は規約で認められていないため）。失敗しても投稿は止めない。
+      const sceneBuffer = await generateSceneImage(content.scenePrompt, config.scene, {
+        width: config.image.width, height: config.image.height, itemName: item.name,
+      });
+
       const { files } = await renderCarousel({
-        item, content, cfg: config.image, outDir: config.paths.publicDir, slug,
+        item, content, cfg: config.image, outDir: config.paths.publicDir, slug, sceneBuffer,
       });
 
       const relPaths = files.map((f) => path.relative(config.paths.publicDir, f).split(path.sep).join('/'));
@@ -226,6 +235,16 @@ export async function doctor() {
   room('スコアリング', ['click', 'conversion'].includes(config.research.scoringProfile),
        `${config.research.scoringProfile}（楽天ROOMは click 推奨）`);
   room('1日の投稿候補数', config.content.roomPostsPerDay >= 1, `${config.content.roomPostsPerDay} 件`);
+  room('紹介文の書き方', ['auto', 'pain-first'].includes(config.content.writingMode),
+       config.content.writingMode === 'auto'
+         ? '所有登録済みの商品のみ使用体験として書く'
+         : '常にペインファースト（使用体験は書かない）');
+  room('所有商品の登録', true,
+       (() => {
+         const n = OwnedItems.load(config.paths.owned).items.length;
+         return n ? `${n} 件（この商品は使用体験として書ける）`
+                  : '0 件。実際に使っている商品を登録すると使用体験として書けます';
+       })(), false);
   room('セール日程の確定登録', true,
        (() => {
          try {
@@ -233,6 +252,13 @@ export async function doctor() {
            return n ? `${n} 件登録済み` : '未登録（推定日程で動作します）';
          } catch { return '未登録（推定日程で動作します）'; }
        })(), false);
+
+  const scene = group('使用シーン画像（任意）', 'Instagram の表紙に敷く。楽天画像は入力しない');
+  scene('SCENE_IMAGE_ENABLED', config.scene.enabled,
+        config.scene.enabled ? `${config.scene.model} ${config.scene.size} ${config.scene.quality}` : '無効', false);
+  scene('OPENAI_API_KEY', !!config.scene.apiKey, '', false);
+  scene('AI生成の表示', config.scene.label,
+        config.scene.label ? config.scene.labelText : '無効。実写と誤認させる恐れがあります', false);
 
   const ig = group('Instagram（自動投稿）', '使わない場合は未設定で問題ありません');
   ig('PUBLIC_BASE_URL', !!config.publicBaseUrl, config.publicBaseUrl, false);
@@ -274,8 +300,10 @@ export async function doctor() {
 export const ROOM_DIGEST_LABEL = 'room-digest';
 
 /** 商品1件から「紹介文つきの投稿候補」を作る */
-async function makeRoomCandidate(item, event) {
-  const content = await generateRoomComment(item, config.content, { event });
+async function makeRoomCandidate(item, event, owned) {
+  // 所有登録があれば使用体験として、無ければペインファーストで書く
+  const registration = owned?.find(item) ?? null;
+  const content = await generateRoomComment(item, config.content, { event, owned: registration });
   return {
     itemId: item.id,
     createdAt: new Date().toISOString(),
@@ -302,6 +330,8 @@ export async function roomDigest({ dryRun = false } = {}) {
   const history = History.load(config.paths.history);
   const queue = Queue.load(config.paths.queue);
   const roomLog = RoomLog.load(config.paths.roomLog);
+  const owned = OwnedItems.load(config.paths.owned);
+  if (owned.items.length) log(`所有登録: ${owned.items.length} 件（該当商品は使用体験として書く）`);
 
   const plan = todaysPlan({ overridesFile: config.paths.events });
   log(`本日の方針: ${plan.phase}${plan.target ? ` / ${plan.target.label} ${plan.target.daysUntil}日前` : ''}`);
@@ -330,7 +360,7 @@ export async function roomDigest({ dryRun = false } = {}) {
 
   for (const item of picked.slice(0, shortfall)) {
     try {
-      const c = await makeRoomCandidate(item, plan.target);
+      const c = await makeRoomCandidate(item, plan.target, owned);
       candidates.push({ ...c, slug: `room-${ymd(nowJst())}-${item.id.replace(/[^\w]+/g, '-')}`, status: 'delivered' });
       history.record({ itemId: item.id, shopCode: item.shopCode, name: item.name, status: 'room-delivered' });
     } catch (e) { warn(`紹介文の生成に失敗 (${item.name}): ${e.message}`); }
@@ -340,7 +370,7 @@ export async function roomDigest({ dryRun = false } = {}) {
   const tomorrow = [];
   for (const item of picked.slice(shortfall, shortfall + need)) {
     try {
-      const c = await makeRoomCandidate(item, plan.target);
+      const c = await makeRoomCandidate(item, plan.target, owned);
       const entry = { ...c, slug: `room-draft-${item.id.replace(/[^\w]+/g, '-')}`, status: 'draft' };
       queue.add(entry);
       tomorrow.push(entry);
