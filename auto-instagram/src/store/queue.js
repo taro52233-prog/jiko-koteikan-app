@@ -25,10 +25,12 @@ export class Queue {
 
   save() {
     fs.mkdirSync(path.dirname(this.file), { recursive: true });
-    // 公開済み・却下済みは30日で掃除する
+    // 役目を終えたもの（公開済み・却下・digest配信済み）は30日で掃除する。
+    // draft と pending は未消化なので残す。
+    const done = ['published', 'rejected', 'delivered'];
     const cutoff = Date.now() - 30 * 86400000;
     this.data.items = this.data.items.filter(
-      (i) => !['published', 'rejected'].includes(i.status) || Date.parse(i.createdAt) > cutoff
+      (i) => !done.includes(i.status) || Date.parse(i.createdAt) > cutoff
     );
     fs.writeFileSync(this.file, `${JSON.stringify(this.data, null, 2)}\n`);
   }

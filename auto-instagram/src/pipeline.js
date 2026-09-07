@@ -11,14 +11,18 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { config, requireConfig } from './config.js';
 import { collectCandidates } from './research/rakuten.js';
-import { selectItems } from './research/score.js';
+import { selectItems, selectKaimawari } from './research/score.js';
 import { generateContent } from './content/generate.js';
+import { generateRoomComment } from './content/room.js';
 import { renderCarousel } from './image/render.js';
 import { History } from './store/history.js';
 import { Queue } from './store/queue.js';
 import { InstagramClient } from './publish/instagram.js';
-import { openReviewIssue, fetchApprovedIssueNumbers, closeIssue, reportFailure } from './publish/review.js';
-import { jstStamp, log, warn, sleep } from './util.js';
+import { openReviewIssue, fetchApprovedIssueNumbers, closeIssue, reportFailure, createIssue } from './publish/review.js';
+import { todaysPlan, ymd } from './room/calendar.js';
+import { RoomLog, rankProgress } from './room/rank.js';
+import { buildDigest } from './room/digest.js';
+import { jstStamp, log, warn, sleep, nowJst } from './util.js';
 
 const slugify = (s) => String(s).replace(/[^A-Za-z0-9]+/g, '-').replace(/^-|-$/g, '').toLowerCase().slice(0, 40);
 
@@ -196,39 +200,177 @@ export async function publish({ dryRun = false, slug = null } = {}) {
 }
 
 /** ===================== doctor ===================== */
-export async function doctor() {
-  const checks = [];
-  const add = (name, ok, detail = '') => checks.push({ name, ok, detail });
 
-  add('RAKUTEN_APP_ID', !!config.research.rakutenAppId);
-  add('RAKUTEN_AFFILIATE_ID', !!config.research.rakutenAffiliateId,
-      config.research.rakutenAffiliateId ? '' : '未設定だとアフィリエイトリンクになりません');
-  add('ANTHROPIC_API_KEY', !!config.content.anthropicApiKey);
-  add('PUBLIC_BASE_URL', !!config.publicBaseUrl, config.publicBaseUrl);
-  add('IG_USER_ID', !!config.instagram.userId);
-  add('IG_ACCESS_TOKEN', !!config.instagram.accessToken);
-  add('ステマ表示(景表法)', config.content.disclosureRequired,
-      config.content.disclosureRequired ? config.content.disclosureText : '無効。アフィリエイト運用では違法になり得ます');
+/**
+ * 設定診断。
+ * 楽天ROOM だけで使う人に Instagram の未設定を「エラー」として見せると
+ * 何が壊れているのか分からなくなるので、用途ごとに区切って必須/任意を分けている。
+ */
+export async function doctor() {
+  const groups = [];
+  const group = (name, note) => {
+    const g = { name, note, checks: [] };
+    groups.push(g);
+    return (label, ok, detail = '', required = true) => g.checks.push({ label, ok, detail, required });
+  };
+
+  const common = group('共通', '両方の用途で必要');
+  common('RAKUTEN_APP_ID', !!config.research.rakutenAppId, '楽天ウェブサービスのアプリID');
+  common('RAKUTEN_AFFILIATE_ID', !!config.research.rakutenAffiliateId,
+         config.research.rakutenAffiliateId ? '' : '未設定だと報酬が発生しないリンクになります');
+  common('ANTHROPIC_API_KEY', !!config.content.anthropicApiKey);
+  common('ステマ表示(景表法)', config.content.disclosureRequired,
+         config.content.disclosureRequired ? config.content.roomDisclosureText : '無効。アフィリエイト運用では違法になり得ます');
+
+  const room = group('楽天ROOM（digest）', 'GitHub Actions 上でのみ Issue を作成');
+  room('スコアリング', ['click', 'conversion'].includes(config.research.scoringProfile),
+       `${config.research.scoringProfile}（楽天ROOMは click 推奨）`);
+  room('1日の投稿候補数', config.content.roomPostsPerDay >= 1, `${config.content.roomPostsPerDay} 件`);
+  room('セール日程の確定登録', true,
+       (() => {
+         try {
+           const n = JSON.parse(fs.readFileSync(config.paths.events, 'utf8')).events?.length ?? 0;
+           return n ? `${n} 件登録済み` : '未登録（推定日程で動作します）';
+         } catch { return '未登録（推定日程で動作します）'; }
+       })(), false);
+
+  const ig = group('Instagram（自動投稿）', '使わない場合は未設定で問題ありません');
+  ig('PUBLIC_BASE_URL', !!config.publicBaseUrl, config.publicBaseUrl, false);
+  ig('IG_USER_ID', !!config.instagram.userId, '', false);
+  ig('IG_ACCESS_TOKEN', !!config.instagram.accessToken, '', false);
 
   try {
     const { registerFonts } = await import('./image/fonts.js');
-    const f = registerFonts(config.image);
-    add('日本語フォント', true, f.bold);
-  } catch (e) { add('日本語フォント', false, e.message); }
+    ig('日本語フォント', true, registerFonts(config.image).bold, false);
+  } catch (e) { ig('日本語フォント', false, e.message, false); }
 
   if (config.instagram.accessToken && config.instagram.appId && config.instagram.appSecret) {
     try {
       const { inspectToken } = await import('./publish/instagram.js');
       const t = await inspectToken(config.instagram);
-      add('アクセストークン', t.valid, t.daysLeft === Infinity ? '無期限' : `残り ${t.daysLeft} 日`);
-    } catch (e) { add('アクセストークン', false, e.message); }
+      ig('アクセストークン', t.valid, t.daysLeft === Infinity ? '無期限' : `残り ${t.daysLeft} 日`, false);
+    } catch (e) { ig('アクセストークン', false, e.message, false); }
   }
 
   // 全角文字は2列分を占めるので、コード単位ではなく表示幅で揃える
   const displayWidth = (s) => [...s].reduce((w, ch) => w + (/[\u3000-\u9FFF\uFF00-\uFF60]/.test(ch) ? 2 : 1), 0);
-  const width = Math.max(...checks.map((c) => displayWidth(c.name)));
-  for (const c of checks) {
-    console.log(`${c.ok ? '✅' : '❌'} ${c.name}${' '.repeat(width - displayWidth(c.name))}  ${c.detail}`);
+  const width = Math.max(...groups.flatMap((g) => g.checks.map((c) => displayWidth(c.label))));
+
+  for (const g of groups) {
+    console.log(`\n■ ${g.name}　${g.note}`);
+    for (const c of g.checks) {
+      const mark = c.ok ? '✅' : (c.required ? '❌' : '⬜');
+      console.log(`  ${mark} ${c.label}${' '.repeat(width - displayWidth(c.label))}  ${c.detail}`);
+    }
   }
-  return checks.every((c) => c.ok);
+  console.log('');
+
+  const blocking = groups.flatMap((g) => g.checks).filter((c) => c.required && !c.ok);
+  if (blocking.length) console.log(`未設定の必須項目: ${blocking.map((c) => c.label).join(', ')}\n`);
+  return blocking.length === 0;
+}
+
+/** ===================== 楽天ROOM: 日次 digest ===================== */
+export const ROOM_DIGEST_LABEL = 'room-digest';
+
+/** 商品1件から「紹介文つきの投稿候補」を作る */
+async function makeRoomCandidate(item, event) {
+  const content = await generateRoomComment(item, config.content, { event });
+  return {
+    itemId: item.id,
+    createdAt: new Date().toISOString(),
+    item: {
+      name: item.name, price: item.price, url: item.url, shopName: item.shopName,
+      shopCode: item.shopCode, reviewCount: item.reviewCount,
+      reviewAverage: item.reviewAverage, score: item.score, images: item.images.slice(0, 1),
+    },
+    content,
+  };
+}
+
+/**
+ * 朝に1通届く「今日やること」を作る。
+ *
+ * 前日の夜に仕込んだ下書き（status: draft）があればそれを今日の分として出し、
+ * 同時に翌日分の下書きを新しく作る。動画のルーティン（夜に翌日を仕込む）を
+ * パイプライン側で肩代わりしている。
+ */
+export async function roomDigest({ dryRun = false } = {}) {
+  requireConfig('research');
+  if (!config.content.anthropicApiKey) throw new Error('必要な環境変数が未設定です: ANTHROPIC_API_KEY');
+
+  const history = History.load(config.paths.history);
+  const queue = Queue.load(config.paths.queue);
+  const roomLog = RoomLog.load(config.paths.roomLog);
+
+  const plan = todaysPlan({ overridesFile: config.paths.events });
+  log(`本日の方針: ${plan.phase}${plan.target ? ` / ${plan.target.label} ${plan.target.daysUntil}日前` : ''}`);
+
+  // イベントに応じて狙い目の価格帯を差し替える（マラソンなら1,000円前後）
+  const research = { ...config.research, priceHint: plan.priceHint };
+  const need = config.content.roomPostsPerDay;
+
+  // 1) 前夜の下書きを今日の分として引き当てる
+  const drafts = queue.byStatus('draft').sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  const candidates = drafts.slice(0, need);
+
+  // 2) 足りない分と、明日の下書き分をまとめて選定する
+  const shortfall = need - candidates.length;
+  const wanted = shortfall + need;
+  let pool = [];
+  if (wanted > 0) {
+    log('候補商品を収集中...');
+    pool = await collectCandidates(research);
+    log(`候補 ${pool.length} 件`);
+  }
+
+  const { picked } = pool.length
+    ? selectItems(pool, research, history, wanted, config.research.scoringProfile)
+    : { picked: [] };
+
+  for (const item of picked.slice(0, shortfall)) {
+    try {
+      const c = await makeRoomCandidate(item, plan.target);
+      candidates.push({ ...c, slug: `room-${ymd(nowJst())}-${item.id.replace(/[^\w]+/g, '-')}`, status: 'delivered' });
+      history.record({ itemId: item.id, shopCode: item.shopCode, name: item.name, status: 'room-delivered' });
+    } catch (e) { warn(`紹介文の生成に失敗 (${item.name}): ${e.message}`); }
+  }
+
+  // 3) 明日の下書きを仕込む
+  const tomorrow = [];
+  for (const item of picked.slice(shortfall, shortfall + need)) {
+    try {
+      const c = await makeRoomCandidate(item, plan.target);
+      const entry = { ...c, slug: `room-draft-${item.id.replace(/[^\w]+/g, '-')}`, status: 'draft' };
+      queue.add(entry);
+      tomorrow.push(entry);
+      history.record({ itemId: item.id, shopCode: item.shopCode, name: item.name, status: 'room-draft' });
+    } catch (e) { warn(`翌日分の下書き生成に失敗 (${item.name}): ${e.message}`); }
+  }
+
+  // 引き当てた下書きは配信済みにする
+  for (const c of candidates) if (c.status === 'draft') queue.update(c.slug, { status: 'delivered' });
+
+  // 4) お買い物マラソン期だけ買い回りリストを付ける
+  let kaimawari = null;
+  if (plan.kaimawari && pool.length) {
+    kaimawari = selectKaimawari(pool, research, history, config.content.kaimawariCount);
+    log(`買い回りリスト: ${kaimawari.shopCount}ショップ`);
+  }
+
+  const progress = rankProgress(roomLog);
+  const { title, body } = buildDigest({ plan, candidates, tomorrow, kaimawari, progress });
+
+  if (dryRun) {
+    console.log(`\n===== ${title} =====\n`);
+    console.log(body);
+    return { title, body, candidates, dryRun: true };
+  }
+
+  const issueNumber = await createIssue({ title, body, labels: [ROOM_DIGEST_LABEL] });
+  queue.save();
+  history.save();
+  roomLog.save();
+  log(`digest を配信しました${issueNumber ? ` (#${issueNumber})` : ''}`);
+  return { title, body, candidates, issueNumber };
 }

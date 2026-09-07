@@ -47,6 +47,10 @@ export const config = {
     publicDir: path.join(REPO_ROOT, 'docs', 'ig'),
     history: path.join(ROOT, 'data', 'history.json'),
     queue: path.join(ROOT, 'data', 'queue.json'),
+    /** 楽天のセール日程（手入力で確定日程を上書きする） */
+    events: path.join(ROOT, 'data', 'rakuten-events.json'),
+    /** 楽天ROOM の実施ログ（ランクアップ進捗の自己申告） */
+    roomLog: path.join(ROOT, 'data', 'room-log.json'),
   },
 
   /** 生成物の公開ベースURL（GitHub Pages）。例: https://<user>.github.io/<repo>/ig */
@@ -69,6 +73,11 @@ export const config = {
     minReviewAverage: num(env.RESEARCH_MIN_REVIEW_AVERAGE, 4.0),
     /** 1回の実行で候補として集める件数 */
     poolSize: num(env.RESEARCH_POOL_SIZE, 60),
+    /**
+     * click      = 楽天ROOM向け。クリック数の最大化（紹介商品が売れなくても報酬になるため）
+     * conversion = その商品自体の購入を狙う場合
+     */
+    scoringProfile: (env.SCORING_PROFILE || 'click').toLowerCase(),
     /** 同一ショップの連投を避ける日数 */
     shopCooldownDays: num(env.RESEARCH_SHOP_COOLDOWN_DAYS, 7),
   },
@@ -84,6 +93,18 @@ export const config = {
     /** 景品表示法（ステマ規制）対応。アフィリエイト運用では必ず true のままにすること */
     disclosureRequired: bool(env.CONTENT_DISCLOSURE_REQUIRED, true),
     disclosureText: env.CONTENT_DISCLOSURE_TEXT || '【PR】この投稿にはアフィリエイトリンク・広告が含まれます。',
+
+    // --- 楽天ROOM 用（Instagram とは文字数もトーンも別物なので分けている） ---
+    roomPersona: env.ROOM_PERSONA || env.BRAND_PERSONA
+      || '節約と時短を大事にする20〜40代。売り込まれるのは苦手だが、良いものは知りたい',
+    /** 楽天ROOMのコメントは長いと折り返されて読まれない。80字前後が実用上限 */
+    roomMaxChars: num(env.ROOM_MAX_CHARS, 80),
+    roomHashtags: num(env.ROOM_HASHTAGS, 5),
+    roomDisclosureText: env.ROOM_DISCLOSURE_TEXT || '#PR #広告',
+    /** 1日に用意する投稿候補の数（動画のルーティンは1日1〜2投稿） */
+    roomPostsPerDay: num(env.ROOM_POSTS_PER_DAY, 2),
+    /** お買い物マラソン期に出す買い回りリストの件数（10ショップで倍率上限） */
+    kaimawariCount: num(env.KAIMAWARI_COUNT, 10),
   },
 
   image: {

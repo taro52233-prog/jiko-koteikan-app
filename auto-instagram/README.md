@@ -1,122 +1,193 @@
-# auto-instagram — 商品リサーチ → 投稿生成 → 定時投稿 の自動パイプライン
+# auto-instagram — 楽天ROOM / Instagram の商品リサーチ・投稿制作 自動化パイプライン
 
-商品を自動で探し、Instagram のカルーセル投稿（画像＋本文）を自動で作り、決まった時刻に自動投稿する仕組み。
+商品リサーチ、紹介文の作成、セールのタイミング判断、進捗管理までを自動化する。
 GitHub Actions だけで完結し、サーバーは不要。
+
+用途が2つあり、**片方だけ使ってもよい**。
+
+| | 楽天ROOM | Instagram |
+| --- | --- | --- |
+| リサーチ・選定 | 自動 | 自動 |
+| 紹介文・画像の作成 | 自動 | 自動 |
+| **投稿** | **手動（コピペ1タップ）** | **自動** |
+| 理由 | 投稿用の公開APIが無く、自動投稿は規約違反 | 公式の Content Publishing API がある |
+| 始めるまで | **即日**（無料IDのみ） | Metaのアプリ審査（数日〜2週間） |
+
+---
+
+## Ⅰ. 楽天ROOM：1日15分ルーティンの自動化
+
+毎朝7時、「今日やること」が1通の Issue で届く。
+
+```mermaid
+flowchart TB
+  A["cron 07:00 JST"] --> B["セール判定<br/>0と5のつく日 / マラソン / スーパーSALE"]
+  B --> C["楽天市場API<br/>ランキング＋キーワード検索"]
+  C --> D["クリック最適化スコアで選定<br/>投稿済み・同ショップを除外"]
+  D --> E["Claude API<br/>紹介文3パターン（80字・口語体）"]
+  E --> F["digest Issue<br/>朝・昼・夜 ＋ 進捗"]
+  F --> G["人：コピペして投稿"]
+  G --> H["チェックボックスを叩く"]
+  H --> I["実施ログに記録<br/>連続日数・オリジナル写真"]
+  I --> B
+```
+
+### digest に入っているもの
+
+| セクション | 内容 |
+| --- | --- |
+| 🎯 イベント | 次のセールまで何日か。**仕込み期間（1〜5日前）**なら方針つきで警告 |
+| ☀️ 朝（5分） | 投稿候補2件。商品画像・価格・レビュー・リンク・**紹介文3パターン**（コピペ用） |
+| 🛒 買い回り | お買い物マラソン期のみ。**全部ショップが違う**1,000円前後の商品を10件 |
+| 🌤 昼（5分） | 「いいね」を誰に押すか。無差別ではなくターゲットの絞り方 |
+| 🌙 夜（5分） | 明日の分（前夜のうちに生成済み） |
+| 📈 進捗 | 連続投稿日数、今週のオリジナル写真回数、**今日の一手**を1つだけ提示 |
+| ✅ 記録 | チェックを付けると実施ログに自動記録される |
+
+### 設計で効かせているポイント
+
+**クリック最適化で選ぶ（`SCORING_PROFILE=click`）**
+楽天アフィリエイトの報酬は「リンククリック → 24時間以内にかご → 90日以内に購入」で発生し、
+**紹介した商品そのものが売れる必要はない**。クリック後に楽天市場で別の何かが買われても報酬になる。
+したがって最適化すべきは成約率ではなく**クリックされる確率**。
+`research/score.js` はトレンド（ランキング順位）とレビュー数の重みを上げ、
+狙い目価格帯から外れた高額品を減点する。低評価品は信頼を失うので評価も0にはしない。
+
+**セール当日ではなく1〜5日前に仕込む**
+ユーザーはセール前に下見をして「いいねリスト」に入れ、開始と同時に買う。
+当日投稿では間に合わないため、`room/calendar.js` は**当日イベントより仕込み期間を優先**して方針を出す。
+
+**買い回りは「安さ」ではなく「ショップが全部違うこと」**
+お買い物マラソンのポイント倍率は購入した**ショップ数**で決まる。
+`selectKaimawari()` はスコア順ではなく、ショップの重複を許さないことを最優先する。
+
+**「今日の一手」を1つに絞る**
+全部やれと言われると15分に収まらない。
+`room/rank.js` は プロフィール → **オリジナル写真** → 投稿 → いいね の順で、
+いま最も効く1つだけを返す。オリジナル写真を最優先に置いているのは、
+Bランク到達に最も効くとされる要素だから。
+
+### 元ネタとの相違点（正直に書いておく）
+
+| 元の手法 | この実装 | 理由 |
+| --- | --- | --- |
+| Perplexity に売れ筋を聞く | **楽天ランキングAPIを直接叩く** | AIの要約を挟まず一次データを取る方が速く正確。件数・評価・ショップ・在庫がそのまま使える |
+| Perplexity に口コミを分析させる | **商品説明文＋レビュー統計から書く** | 楽天にレビュー本文の公式APIが無い。スクレイピングは規約リスク。「口コミによると」という**根拠のない引用は書かせない**ようにガードした |
+| セール日程をAIに聞く | **カレンダー計算＋手入力の確定日程** | 日付固定のイベント（0と5のつく日・ワンダフルデー）は計算できる。日程がずれるマラソン／スーパーSALEは推定として出し、`data/rakuten-events.json` に確定日を書くと上書きされる（推定には必ず `※推定日程` と表示する） |
+| 手作業で進捗を意識する | **チェックボックス→ログ→次の一手** | 続くかどうかが成否を分けるので、記録の手間を1タップにした |
+
+### セットアップ（即日できる）
+
+1. **無料IDを2つ取る**
+   - 楽天ウェブサービス アプリID … https://webservice.rakuten.co.jp/
+   - 楽天アフィリエイトID … https://affiliate.rakuten.co.jp/
+2. **Secrets を登録**（Settings → Secrets and variables → Actions → Secrets）
+
+   | 名前 | 値 |
+   | --- | --- |
+   | `RAKUTEN_APP_ID` | 楽天ウェブサービスのアプリID |
+   | `RAKUTEN_AFFILIATE_ID` | 楽天アフィリエイトID |
+   | `ANTHROPIC_API_KEY` | `sk-ant-...`（https://console.anthropic.com/） |
+
+3. **Variables を登録**（同じ画面の Variables タブ）
+
+   | 名前 | 例 |
+   | --- | --- |
+   | `RESEARCH_KEYWORDS` | `タンブラー,加湿器,詰め替えボトル,珪藻土` |
+   | `ROOM_PERSONA` | `節約と時短を大事にする20〜40代` |
+   | `ROOM_POSTS_PER_DAY` | `2` |
+
+4. **試す** — Actions → 「楽天ROOM 今日やること」→ Run workflow（`dry_run: true` で内容だけ確認できる）
+
+これで毎朝7時に digest が届く。以降やることは「コピペして投稿」「チェックを付ける」だけ。
+
+### 手元で確認する
+
+```bash
+cd auto-instagram && npm ci
+npm run calendar   # 今日の方針とセール日程
+npm run rank       # Bランクまでの進捗と今日の一手
+npm run digest -- --dry-run   # digest の中身を標準出力に
+npm run doctor     # 設定診断
+```
+
+### セール日程を確定させる
+
+お買い物マラソンとスーパーSALEは毎回日程がずれる。公式発表が出たら追記する:
+
+```json
+{ "events": [
+  { "kind": "marathon",  "date": "2026-09-19" },
+  { "kind": "superSale", "date": "2026-12-04" }
+] }
+```
+
+`auto-instagram/data/rakuten-events.json`。未登録の月は推定日程で動き、digest に `※推定日程` と表示される。
+
+---
+
+## Ⅱ. Instagram：生成から投稿まで完全自動
+
+楽天ROOM で使った同じリサーチ結果から、カルーセル投稿（1080×1350・5枚）を生成して自動投稿する。
 
 ```mermaid
 flowchart LR
-  A["cron 09:00 JST<br/>ig-build.yml"] --> B["楽天市場API<br/>ランキング＋検索"]
-  B --> C["スコアリング・重複除外<br/>research/score.js"]
-  C --> D["Claude API<br/>コピー生成"]
-  D --> E["カルーセル画像生成<br/>1080x1350 × 5枚"]
-  E --> F["docs/ig へコミット<br/>→ GitHub Pages で公開URL化"]
-  F --> G{"POST_MODE"}
-  G -- review --> H["承認Issue<br/>ラベルを付けたものだけ通す"]
-  G -- auto --> I
-  H --> I["cron 12:00/20:00 JST<br/>ig-publish.yml"]
-  I --> J["Instagram Graph API<br/>/media → /media_publish"]
-  J --> K["履歴記録・画像を掃除"]
+  A["cron 09:00 JST"] --> B["リサーチ・選定"]
+  B --> C["Claude API<br/>コピー生成"]
+  C --> D["カルーセル画像5枚"]
+  D --> E["docs/ig へコミット<br/>→ GitHub Pages で公開URL化"]
+  E --> F{"POST_MODE"}
+  F -- review --> G["承認Issue<br/>ラベルを付けたものだけ"]
+  F -- auto --> H
+  G --> H["cron 12:00/20:00 JST"]
+  H --> I["Graph API<br/>/media → /media_publish"]
 ```
 
-## 設計上、ここだけは押さえてほしい 3 点
+### 設計上、押さえてほしい3点
 
 **1. 生成と投稿はワークフローが分かれている（分けざるを得ない）**
 Instagram Graph API は「インターネットから到達できる公開URLの画像」しか受け付けない。バイナリを直接アップロードする口が無い。
-そのため `生成 → コミット＆プッシュ → GitHub Pages 反映 → 投稿` という順序が仕様上必須になる。1つのプロセスでは完結できないので、`data/queue.json` を継ぎ目にして `build` と `publish` に分けている。
+そのため `生成 → コミット＆プッシュ → GitHub Pages 反映 → 投稿` という順序が仕様上必須になる。`data/queue.json` がその継ぎ目。
 
-**2. 既定は「完全自動」ではなく承認ゲート付き（`POST_MODE=review`）**
-LLM生成をノーチェックで公開アカウントに流すのは、誤情報・薬機法/景表法違反・ブランド毀損のリスクを毎日引くのと同じ。回収コストが自動化の利得を上回りやすい。
-そこで既定は「候補を GitHub Issue に出し、`ig-approved` ラベルを付けたものだけ投稿する」。承認は Issue にラベルを1つ付けるだけ＝スマホから10秒で終わる。精度に納得できたら `POST_MODE=auto` に切り替えれば完全自動になる。
+**2. 既定は完全自動ではなく承認ゲート（`POST_MODE=review`）**
+LLM生成をノーチェックで公開アカウントに流すのは、誤情報・法令違反・ブランド毀損のリスクを毎日引くのと同じ。
+既定は「候補を Issue に出し、`ig-approved` ラベルを付けたものだけ投稿」。精度に納得できたら `POST_MODE=auto` にする。
 
-**3. ステマ規制（景品表示法）対応をコード側で強制している**
-2023年10月施行のステマ規制により、アフィリエイト投稿には広告である旨の明示が必要。
-本文先頭への `【PR】` 挿入と画像への PR バッジ焼き込みは、LLM のプロンプト任せにせず `sanitize()` と `drawPrBadge()` で機械的に必ず行う。設定 `CONTENT_DISCLOSURE_REQUIRED` は false にできるが、アフィリエイト運用では法令違反になり得るので触らないこと。
+**3. ステマ規制（景表法）対応をコード側で強制している**
+本文先頭への `【PR】` 挿入と画像への PR バッジ焼き込みは、LLM のプロンプト任せにせず `sanitize()` と `drawPrBadge()` で機械的に必ず行う。
 
----
+### 追加で必要なもの
 
-## 前提条件（ここが実運用の最大の壁）
-
-| 必要なもの | 取得先 | 難易度・所要時間 |
-| --- | --- | --- |
-| Instagram **プロアカウント**（ビジネス/クリエイター） | Instagramアプリの設定 | 5分。個人アカウントは API 非対応 |
-| Facebook ページ（Instagramと連携） | facebook.com | 10分 |
-| Meta 開発者アプリ + `instagram_business_content_publish` 権限 | developers.facebook.com | **アプリ審査が必要。数日〜2週間** |
-| 楽天ウェブサービス アプリID | webservice.rakuten.co.jp | 即日・無料 |
-| 楽天アフィリエイトID | affiliate.rakuten.co.jp | 即日・無料 |
-| Anthropic API キー | console.anthropic.com | 即日 |
-
-> **審査を通していない間**は `POST_MODE=review` かつ手動投稿で運用できる。
-> 生成された画像は `docs/ig/<slug>/` に、本文は承認Issueに揃っているので、
-> それをコピーして手で投稿すれば「リサーチと制作だけ自動」の状態で今日から使える。
-> 審査が通ったら Secrets を足すだけで投稿まで自動になる。
-
-**やってはいけない代替案**: `instagrapi` 等の非公式ライブラリでログイン自動化する方法が検索すると出てくるが、Instagram の利用規約違反で、アカウント凍結の実例が多い。育てたアカウントを失うので採用していない。
-
----
-
-## セットアップ
-
-### 1. 各種IDを取得して GitHub に登録
-
-**Settings → Secrets and variables → Actions → Secrets**（秘匿値）
-
-| 名前 | 値 |
+| 必要なもの | 難易度 |
 | --- | --- |
-| `RAKUTEN_APP_ID` | 楽天ウェブサービスのアプリID |
-| `RAKUTEN_AFFILIATE_ID` | 楽天アフィリエイトID |
-| `ANTHROPIC_API_KEY` | `sk-ant-...` |
-| `IG_USER_ID` | Instagram ビジネスアカウントID（17桁前後の数値） |
-| `IG_ACCESS_TOKEN` | 長期アクセストークン（後述） |
-| `META_APP_ID` / `META_APP_SECRET` | Meta 開発者アプリのもの（トークン期限チェックに使用） |
+| Instagram プロアカウント（ビジネス/クリエイター） | 5分。個人アカウントは API 非対応 |
+| Facebook ページ（Instagram と連携） | 10分 |
+| Meta 開発者アプリ + `instagram_business_content_publish` | **アプリ審査が必要。数日〜2週間** |
+| GitHub Pages（画像の公開URL用） | Settings → Pages → `main` / `/(root)` |
 
-**Variables**（秘匿不要な設定）
+**Secrets**: `IG_USER_ID` `IG_ACCESS_TOKEN` `META_APP_ID` `META_APP_SECRET`
+**Variables**: `PUBLIC_BASE_URL`（例 `https://<ユーザー名>.github.io/jiko-koteikan-app/docs/ig`）、`POST_MODE`、`MAX_POSTS_PER_DAY`
 
-| 名前 | 例 |
-| --- | --- |
-| `PUBLIC_BASE_URL` | `https://<ユーザー名>.github.io/jiko-koteikan-app/docs/ig` |
-| `POST_MODE` | `review`（慣れたら `auto`） |
-| `MAX_POSTS_PER_DAY` | `2` |
-| `RESEARCH_KEYWORDS` | `タンブラー,加湿器,デスクライト` |
-| `BRAND_PERSONA` | アカウントの口調 |
-
-### 2. GitHub Pages を有効化
-
-**Settings → Pages → Source: `Deploy from a branch` / Branch: `main` / Folder: `/ (root)`**
-
-リポジトリのルートを配信対象にすると、既存の `index.html`（鋼の自己肯定感アプリ）はそのまま生き、
-生成画像は `https://<ユーザー名>.github.io/jiko-koteikan-app/docs/ig/...` で配信される。
-この URL を `PUBLIC_BASE_URL` に設定する。
-
-### 3. Instagram の長期アクセストークンを作る
+長期アクセストークン（60日）の取得:
 
 ```bash
-cd auto-instagram
-cp .env.example .env      # META_APP_ID / META_APP_SECRET を記入
 SHORT_LIVED_TOKEN=<グラフAPIエクスプローラで取得した短期トークン> npm run token:exchange
 ```
 
-出力された長期トークン（60日）を Secrets の `IG_ACCESS_TOKEN` に設定する。
 `ig-token-check.yml` が毎週月曜に残り日数を確認し、14日を切ったら Issue で通知する。
 
-### 4. 動作確認
+**やってはいけない代替案**: `instagrapi` 等の非公式ライブラリでログイン自動化する方法が検索すると出てくるが、
+利用規約違反でアカウント凍結の実例が多い。楽天ROOM の自動投稿ツールも同様。育てたアカウントを失うので採用していない。
 
-```bash
-cd auto-instagram
-npm ci
-npm test          # 15件のテスト（画像生成・法令チェック・パイプライン結線）
-npm run doctor    # 設定・トークン・フォントの健全性チェック
-```
+---
 
-GitHub 上では **Actions → 「IG 投稿を生成」→ Run workflow** で `dry_run: true` を選んで試せる。
-生成された画像は `docs/ig/` にコミットされる。
-
-### 5. 本番稼働
-
-そのまま置いておけば以下のスケジュールで動く。
+## スケジュール
 
 | ワークフロー | 実行時刻(JST) | 内容 |
 | --- | --- | --- |
-| `ig-build.yml` | 毎日 09:00 | 商品リサーチ → 投稿生成 → 承認Issue作成 |
+| `room-digest.yml` | 毎日 07:00 | 楽天ROOM の「今日やること」を配信 |
+| `room-log-sync.yml` | Issue編集時 | チェックボックス → 実施ログ |
+| `ig-build.yml` | 毎日 09:00 | Instagram 投稿の生成 → 承認Issue |
 | `ig-publish.yml` | 毎日 12:00 / 20:00 | 承認済みを投稿 → 公開済み画像を掃除 |
 | `ig-token-check.yml` | 毎週月曜 09:00 | トークン期限の監視 |
 
@@ -124,31 +195,12 @@ GitHub 上では **Actions → 「IG 投稿を生成」→ Run workflow** で `d
 
 ---
 
-## 日々の運用
-
-1. 朝、`[IG投稿承認]` の Issue が届く（画像プレビューと本文つき）
-2. 良ければ `ig-approved` ラベルを付ける／不要なら Issue を close する
-3. 昼と夜の publish ジョブが、ラベル付きのものだけを投稿する
-4. 投稿されると Issue に URL がコメントされて自動で閉じる
-
-### 手動操作
-
-```bash
-node src/cli.js build --count 2      # 2件生成
-node src/cli.js publish --slug xxx   # 1件だけ投稿
-node src/cli.js build --dry-run      # 生成のみ（Issueも投稿もしない）
-node src/cli.js doctor               # 設定診断
-node scripts/prune.js                # 公開済み画像の掃除
-```
-
----
-
 ## 想定コスト
 
-| 項目 | 月額目安（1日2投稿） |
+| 項目 | 月額目安 |
 | --- | --- |
 | GitHub Actions | 0円（パブリックリポジトリは無料。プライベートでも月2000分の枠内） |
-| Claude API | 約50〜150円（1投稿あたり 入力1k/出力1.5k トークン程度） |
+| Claude API | 楽天ROOM のみ: 約100〜200円 / 両方: 約200〜400円 |
 | 楽天API・GitHub Pages | 0円 |
 
 ---
@@ -157,16 +209,17 @@ node scripts/prune.js                # 公開済み画像の掃除
 
 | 仕掛け | 場所 | 目的 |
 | --- | --- | --- |
-| 承認ゲート | `publish/review.js` | 公開前に人が1回見る |
-| 事実の固定 | `content/prompt.js` | 与えた商品データ以外の事実を書かせない |
+| 事実の固定 | `content/prompt.js` `content/room.js` | 与えた商品データ以外の事実を書かせない |
+| 使用体験の捏造を除去 | `content/room.js` `sanitizeRoom()` | 「愛用しています」→「気になっています」に機械的に置換 |
+| 引用の捏造を除去 | 同上 | 「口コミによると」を許さない（レビュー本文は取得していないため） |
 | 禁止表現の機械除去 | `content/generate.js` `sanitize()` | 「日本一」「完治」等をプロンプト任せにしない |
-| 価格の突合警告 | 同上 | LLMが数値を書き換えたら警告を出す |
+| 価格の突合警告 | 同上 | LLMが数値を書き換えたら警告 |
 | 薬機法リスク商品の除外 | `research/score.js` | 医薬品的な商品名を候補から外す |
+| 文字数の強制 | `sanitizeRoom()` | 80字を超える紹介文は必ず丸める |
 | 同一商品・同一ショップの再投稿防止 | `store/history.js` | 「同じ物ばかり」を防ぐ |
-| 1日の投稿上限 | `config.js` `limits` | API上限50件に対し既定2件 |
-| 3回失敗で打ち切り | `pipeline.js` | 無限リトライで投稿枠を焼かない |
-| 失敗のIssue化 | `publish/review.js` | 静かに止まる事故を防ぐ |
-| トークン期限監視 | `ig-token-check.yml` | 自動投稿が止まる最大の原因を先回り |
+| 承認ゲート | `publish/review.js` | Instagram は公開前に人が1回見る |
+| 1日の投稿上限 / 3回失敗で打ち切り | `config.js` `pipeline.js` | API上限を焼かない |
+| 失敗のIssue化・トークン期限監視 | `publish/review.js` / `ig-token-check.yml` | 静かに止まる事故を防ぐ |
 
 ---
 
@@ -174,12 +227,13 @@ node scripts/prune.js                # 公開済み画像の掃除
 
 | 症状 | 原因と対処 |
 | --- | --- |
-| 画像の日本語が □ になる | フォント未導入。CI は `fonts-noto-cjk` を入れている。ローカルは `FONT_PATH_BOLD` を指定 |
-| `公開URLに到達できませんでした` | GitHub Pages が未設定／`PUBLIC_BASE_URL` の綴り違い。ブラウザで画像URLを直接開いて確認 |
-| `(#10) Application does not have permission` | Meta アプリ審査が未通過、または権限不足 |
-| `Media ID is not available` | コンテナ処理の待ち不足。`IG_CONTAINER_TIMEOUT_SEC` を延ばす |
+| digest が届かない | Actions のログを確認。`RAKUTEN_APP_ID` / `ANTHROPIC_API_KEY` 未設定が最多 |
 | `候補商品が0件` | 絞り込みが厳しい。`RESEARCH_MIN_REVIEW_COUNT` を下げるかキーワードを増やす |
-| 投稿が突然止まった | まずトークン失効を疑う。`npm run token:check` |
+| チェックが記録されない | Issue に `room-digest` ラベルが付いているか確認（無いと `room-log-sync` が動かない） |
+| セール日程が実際とずれる | `※推定日程` の表示が出ているはず。`data/rakuten-events.json` に確定日を追記 |
+| 画像の日本語が □ になる | フォント未導入。CI は `fonts-noto-cjk` を入れている。ローカルは `FONT_PATH_BOLD` を指定 |
+| `公開URLに到達できませんでした` | GitHub Pages が未設定／`PUBLIC_BASE_URL` の綴り違い |
+| Instagram の投稿が突然止まった | まずトークン失効を疑う。`npm run token:check` |
 
 ---
 
@@ -189,14 +243,36 @@ node scripts/prune.js                # 公開済み画像の掃除
 auto-instagram/
 ├── src/
 │   ├── config.js            設定の一元管理・検証
-│   ├── pipeline.js          build / publish / doctor の本体
+│   ├── pipeline.js          roomDigest / build / publish / doctor
 │   ├── cli.js               コマンド入口
-│   ├── research/            楽天API・スコアリング
-│   ├── content/             プロンプト・Claude呼び出し・検品
-│   ├── image/               フォント解決・描画プリミティブ・テンプレート
-│   ├── publish/             Instagram Graph API・承認ゲート
+│   ├── room/
+│   │   ├── calendar.js      楽天セール日程・仕込みタイミング判定
+│   │   ├── rank.js          Bランク進捗・「今日の一手」
+│   │   └── digest.js        朝/昼/夜 digest の組み立て
+│   ├── research/            楽天API・クリック最適化スコアリング・買い回り選定
+│   ├── content/             プロンプト・Claude呼び出し・検品（room.js が楽天ROOM用）
+│   ├── image/               フォント解決・描画・カルーセルテンプレート
+│   ├── publish/             Instagram Graph API・Issue操作
 │   └── store/               投稿履歴・キュー
-├── scripts/                 トークン交換／期限確認／画像掃除
-├── test/                    ユニット + E2E（外部APIはモック）
-└── data/                    history.json / queue.json（コミットされる）
+├── scripts/                 トークン交換／期限確認／画像掃除／チェック読み戻し
+├── test/                    ユニット + E2E（外部APIは全モック）35件
+└── data/                    history / queue / room-log / rakuten-events（コミットされる）
+```
+
+## コマンド
+
+```bash
+# 楽天ROOM
+npm run digest              # 今日やることを Issue で配信
+npm run digest -- --dry-run # 中身を標準出力に
+npm run calendar            # セール日程と今日の方針
+npm run rank                # 進捗と今日の一手
+
+# Instagram
+node src/cli.js build --count 2      # 2件生成
+node src/cli.js publish --slug xxx   # 1件だけ投稿
+
+# 共通
+npm run doctor              # 設定診断
+npm test                    # 35件
 ```

@@ -6,7 +6,9 @@
   "description": "商品リサーチ → Instagram投稿生成 → 定時自動投稿 パイプライン",
   "engines": { "node": ">=20" },
   "scripts": {
-    "research": "node src/cli.js research",
+    "digest": "node src/cli.js digest",
+    "calendar": "node src/cli.js calendar",
+    "rank": "node src/cli.js rank",
     "build": "node src/cli.js build",
     "publish": "node src/cli.js publish",
     "run": "node src/cli.js run",

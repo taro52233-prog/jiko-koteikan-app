@@ -54,6 +54,18 @@ ${content.fullCaption}
 **見送る** → この Issue を close してください`;
 }
 
+/** 任意の Issue を立てる汎用版。GitHub 外で実行しているときは null を返す */
+export async function createIssue({ title, body, labels = [] }) {
+  const c = ctx();
+  if (!c) { warn('GITHUB_TOKEN/GITHUB_REPOSITORY が無いためIssueを作成しません'); return null; }
+  const res = await fetchJson(`${API}/repos/${c.repo}/issues`, {
+    method: 'POST', headers: c.headers,
+    body: JSON.stringify({ title, body, labels }),
+  }, { label: 'gh-create-issue', retries: 2 });
+  log(`Issueを作成: #${res.number}`);
+  return res.number;
+}
+
 /** 承認待ち Issue を立てる。GitHub 外で実行しているときは何もしない */
 export async function openReviewIssue(payload) {
   const c = ctx();

@@ -1,0 +1,79 @@
+name: 楽天ROOM 今日やること
+
+# 1日15分ルーティンの「朝・昼・夜にやること」を1通にまとめて Issue で配信する。
+#
+# 楽天ROOM には投稿用の公開APIが無く、自動化ツールでの投稿は規約違反（アカウント停止リスク）。
+# そこで自動化するのは投稿ボタンより手前の全工程 ——
+# リサーチ・選定・紹介文3パターン・セール判定・買い回りリスト・進捗管理 —— に絞り、
+# 人が残す作業を「コピペして投稿する」だけにしている。
+on:
+  schedule:
+    # 07:00 JST（= 前日 22:00 UTC）。朝の5分に間に合う時刻に届ける
+    - cron: '0 22 * * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Issueを作らず内容をログに出すだけ'
+        type: boolean
+        default: false
+
+concurrency:
+  group: room-pipeline
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  digest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: auto-instagram/package-lock.json
+
+      - run: npm ci
+        working-directory: auto-instagram
+
+      - name: 今日やることを生成
+        working-directory: auto-instagram
+        env:
+          RAKUTEN_APP_ID: ${{ secrets.RAKUTEN_APP_ID }}
+          RAKUTEN_AFFILIATE_ID: ${{ secrets.RAKUTEN_AFFILIATE_ID }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          ANTHROPIC_MODEL: ${{ vars.ANTHROPIC_MODEL || 'claude-sonnet-5' }}
+          RESEARCH_KEYWORDS: ${{ vars.RESEARCH_KEYWORDS }}
+          RESEARCH_GENRE_IDS: ${{ vars.RESEARCH_GENRE_IDS }}
+          RESEARCH_MIN_PRICE: ${{ vars.RESEARCH_MIN_PRICE }}
+          RESEARCH_MAX_PRICE: ${{ vars.RESEARCH_MAX_PRICE }}
+          RESEARCH_MIN_REVIEW_COUNT: ${{ vars.RESEARCH_MIN_REVIEW_COUNT }}
+          SCORING_PROFILE: ${{ vars.SCORING_PROFILE || 'click' }}
+          ROOM_PERSONA: ${{ vars.ROOM_PERSONA }}
+          ROOM_POSTS_PER_DAY: ${{ vars.ROOM_POSTS_PER_DAY || '2' }}
+          ROOM_MAX_CHARS: ${{ vars.ROOM_MAX_CHARS || '80' }}
+          KAIMAWARI_COUNT: ${{ vars.KAIMAWARI_COUNT || '10' }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: node src/cli.js digest
+
+      - name: 下書き・履歴をコミット
+        if: ${{ !inputs.dry_run }}
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add auto-instagram/data
+          if git diff --staged --quiet; then
+            echo "変更なし"
+            exit 0
+          fi
+          git commit -m "chore(room): 今日やることを配信 [skip ci]"
+          for i in 1 2 3 4; do
+            git pull --rebase origin "${GITHUB_REF_NAME}" && git push origin "HEAD:${GITHUB_REF_NAME}" && exit 0
+            sleep $((2 ** i))
+          done
+          exit 1
