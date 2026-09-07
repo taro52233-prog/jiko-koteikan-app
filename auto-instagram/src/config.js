@@ -53,6 +53,8 @@ export const config = {
     roomLog: path.join(ROOT, 'data', 'room-log.json'),
     /** 実際に所有・使用している商品（ここに登録した物だけ使用体験として書ける） */
     owned: path.join(ROOT, 'data', 'owned-items.json'),
+    /** 文体をまねる元になる実投稿サンプル（few-shot） */
+    styleSamples: path.join(ROOT, 'data', 'style-samples.json'),
   },
 
   /** 生成物の公開ベースURL（GitHub Pages）。例: https://<user>.github.io/<repo>/ig */
@@ -99,9 +101,21 @@ export const config = {
     // --- 楽天ROOM 用（Instagram とは文字数もトーンも別物なので分けている） ---
     roomPersona: env.ROOM_PERSONA || env.BRAND_PERSONA
       || '節約と時短を大事にする20〜40代。売り込まれるのは苦手だが、良いものは知りたい',
-    /** 楽天ROOMのコメントは長いと折り返されて読まれない。80字前後が実用上限 */
-    roomMaxChars: num(env.ROOM_MAX_CHARS, 80),
-    roomHashtags: num(env.ROOM_HASHTAGS, 5),
+    /**
+     * 文体プロファイル。
+     * casual-diary = 独り言・買い物報告型（見出しを作らず、話し言葉で言い切る）
+     * polished     = 整った紹介文型（です・ます調の3拍子）
+     * 未指定なら data/style-samples.json の profile を使う。
+     */
+    roomStyle: (env.ROOM_STYLE || '').toLowerCase(),
+    /** 文体サンプルの場所（content 設定だけで generateRoomComment が完結するように持たせる） */
+    styleSamplesPath: path.join(ROOT, 'data', 'style-samples.json'),
+    /**
+     * 文字数とハッシュタグ数は文体で最適値が違うため、
+     * 明示指定が無ければプロファイルの既定値を使う（0 は「未指定」の意味）。
+     */
+    roomMaxChars: num(env.ROOM_MAX_CHARS, 0),
+    roomHashtags: env.ROOM_HASHTAGS === undefined || env.ROOM_HASHTAGS === '' ? null : num(env.ROOM_HASHTAGS, 0),
     roomDisclosureText: env.ROOM_DISCLOSURE_TEXT || '#PR #広告',
     /** 1日に用意する投稿候補の数（動画のルーティンは1日1〜2投稿） */
     roomPostsPerDay: num(env.ROOM_POSTS_PER_DAY, 2),

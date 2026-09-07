@@ -22,6 +22,7 @@ import { openReviewIssue, fetchApprovedIssueNumbers, closeIssue, reportFailure, 
 import { todaysPlan, ymd } from './room/calendar.js';
 import { RoomLog, rankProgress } from './room/rank.js';
 import { OwnedItems } from './store/owned.js';
+import { loadStyleSamples, resolveStyle, DEFAULT_STYLE } from './content/style.js';
 import { generateSceneImage } from './image/scene.js';
 import { buildDigest } from './room/digest.js';
 import { jstStamp, log, warn, sleep, nowJst } from './util.js';
@@ -235,6 +236,14 @@ export async function doctor() {
   room('スコアリング', ['click', 'conversion'].includes(config.research.scoringProfile),
        `${config.research.scoringProfile}（楽天ROOMは click 推奨）`);
   room('1日の投稿候補数', config.content.roomPostsPerDay >= 1, `${config.content.roomPostsPerDay} 件`);
+  room('文体プロファイル', true,
+       (() => {
+         const { profile, samples } = loadStyleSamples(config.content.styleSamplesPath);
+         const name = config.content.roomStyle || profile || DEFAULT_STYLE;
+         const style = resolveStyle(name);
+         return `${style.label}（${style.maxChars}字・タグ${style.hashtagCount}個）` +
+                (samples.length ? ` / お手本 ${samples.length} 本` : ' / お手本なし（実投稿を貼ると精度が上がります）');
+       })());
   room('紹介文の書き方', ['auto', 'pain-first'].includes(config.content.writingMode),
        config.content.writingMode === 'auto'
          ? '所有登録済みの商品のみ使用体験として書く'

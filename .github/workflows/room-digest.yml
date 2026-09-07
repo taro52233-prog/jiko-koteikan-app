@@ -58,6 +58,8 @@ jobs:
           ROOM_MAX_CHARS: ${{ vars.ROOM_MAX_CHARS || '80' }}
           KAIMAWARI_COUNT: ${{ vars.KAIMAWARI_COUNT || '10' }}
           ROOM_WRITING_MODE: ${{ vars.ROOM_WRITING_MODE || 'auto' }}
+          ROOM_STYLE: ${{ vars.ROOM_STYLE }}
+          ROOM_HASHTAGS: ${{ vars.ROOM_HASHTAGS }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           DRY_RUN: ${{ inputs.dry_run }}
         run: node src/cli.js digest

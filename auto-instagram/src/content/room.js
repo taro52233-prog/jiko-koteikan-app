@@ -19,6 +19,7 @@
  */
 import Anthropic from '@anthropic-ai/sdk';
 import { cleanCaption } from './prompt.js';
+import { buildStyleSection, resolveStyle, loadStyleSamples, DEFAULT_STYLE } from './style.js';
 import { log } from '../util.js';
 
 const COMMON_RULES = `【絶対に守るルール】
@@ -50,11 +51,13 @@ const PAIN_FIRST_RULES = `【書き方：ペインファースト】
   × 「朝が変わりました」（使っていないので嘘になる）
   ○ 「これなら朝の一歩目が変わりそう」（同じ像を作れて、嘘にならない）
 
+※ 3拍子は「入れる中身」の指定であって、書く順番の固定ではありません。
+   文体プロファイルによっては、独り言として自然な順に並べ替えてかまいません。
+
 【この書き方で禁止する表現】
 所有・使用を前提にした語を使わない：
   「使ってみたら」「使っています」「届いた」「愛用」「リピート」「買ってよかった」
-  「洗ってみた」「試した」「効果がありました」「変わりました」
-代わりに「気になっている」「良さそう」「欲しい」「狙ってる」の距離感で書く。`;
+  「洗ってみた」「試した」「効果がありました」「変わりました」`;
 
 const OWNED_RULES = (owned) => `【書き方：使用体験】
 この商品は**実際に所有・使用しているもの**として登録されています。
@@ -85,11 +88,10 @@ export const ROOM_SYSTEM_PROMPT = `あなたは楽天ROOMで商品を紹介す�
 - 抽象的な褒め言葉（おしゃれ・便利・優秀）で終わらせない。
   読み手が自分の生活の一場面を思い浮かべられるかどうかが全て。
 - 3パターンは訴求の切り口を変える。同じことを言い換えただけにしない。
-- 話し言葉。友人に教えるトーン。
 
 ${COMMON_RULES}`;
 
-export function buildRoomPrompt({ item, persona, maxChars, event, hashtagCount, owned }) {
+export function buildRoomPrompt({ item, persona, maxChars, event, hashtagCount, owned, styleSection }) {
   const eventLine = event
     ? `\n【イベント文脈】\n${event.label}が${event.daysUntil === 0 ? '本日' : `${event.daysUntil}日後`}にあります。\n${event.strategy}\n3パターンのうち1つは、このイベントに触れた切り口にしてください（「${event.label}で」程度の自然な触れ方に留めること）。`
     : '';
@@ -109,15 +111,18 @@ ${persona}
 
 ${owned ? OWNED_RULES(owned) : PAIN_FIRST_RULES}
 
+${styleSection}
+
 【紹介文の条件】
 - 各パターン ${maxChars}文字以内。改行は1回まで。
-- 3パターンで**ペインの場面を変える**。同じ困りごとの言い換えにしない。
+- 3パターンで**取り上げる場面を変える**。同じ内容の言い換えにしない。
   例: 朝の場面 / 来客の場面 / 梅雨の場面 のように、時間帯・状況をずらす。
-- 絵文字は各パターン0〜2個まで。
 ${eventLine}
 
 【ハッシュタグ】
-- ${hashtagCount}個以内。楽天ROOMは検索流入があるため、商品名の一般名詞を必ず含める。`;
+${hashtagCount > 0
+  ? `- ${hashtagCount}個以内。楽天ROOMは検索流入があるため、商品名の一般名詞を必ず含める。`
+  : '- この文体ではハッシュタグを使いません。hashtags は空配列で返してください。'}`;
 }
 
 export const ROOM_SCHEMA = {
@@ -161,7 +166,9 @@ export const ROOM_SCHEMA = {
  * pain-first のときだけ「使用・所有を主張する表現」を落とす。
  * owned のときは本人が実際に使っているので、そのまま通す。
  */
-export function sanitizeRoom(draft, { maxChars, hashtagCount, disclosureRequired, disclosureText, owned = false }) {
+export function sanitizeRoom(draft, {
+  maxChars, hashtagCount, disclosureRequired, disclosureText, owned = false, register = 'polite',
+}) {
   const out = structuredClone(draft);
 
   const banned = /(日本一|世界一|業界No\.?1|最安値保証|必ず痩せ|絶対に治|完治)/g;
@@ -177,9 +184,10 @@ export function sanitizeRoom(draft, { maxChars, hashtagCount, disclosureRequired
       .replace(fakeQuote, 'レビュー件数を見るかぎり');
 
     if (!owned) {
+      // 言い換えは文体に合わせる。丁寧語の置換を砕けた文に混ぜると継ぎ目が目立つ
       text = text
-        .replace(claimsUse, '気になっていて')
-        .replace(claimsResult, '変わりそう');
+        .replace(claimsUse, register === 'casual' ? '気になってて' : '気になっていて')
+        .replace(claimsResult, register === 'casual' ? '変わりそう' : '変わりそうです');
     }
 
     text = text.replace(/[ \t]{2,}/g, ' ').trim();
@@ -204,6 +212,7 @@ export function sanitizeRoom(draft, { maxChars, hashtagCount, disclosureRequired
 
   out.scenePrompt = String(out.scenePrompt ?? '').trim();
   out.writingMode = owned ? 'owned' : 'pain-first';
+  out.register = register;
   return out;
 }
 
@@ -219,6 +228,15 @@ export async function generateRoomComment(item, cfg, { event = null, owned = nul
   // 設定が pain-first 固定なら、所有登録があっても使わない
   const useOwned = cfg.writingMode === 'auto' ? owned : null;
 
+  // 文体は 環境変数 > サンプルファイルの profile > 既定 の順で決まる
+  const { profile, samples } = loadStyleSamples(cfg.styleSamplesPath);
+  const styleName = cfg.roomStyle || profile || DEFAULT_STYLE;
+  const style = resolveStyle(styleName);
+  // 文字数・ハッシュタグ数は明示指定が無ければ文体側の既定に従う
+  const maxChars = cfg.roomMaxChars > 0 ? cfg.roomMaxChars : style.maxChars;
+  const hashtagCount = cfg.roomHashtags ?? style.hashtagCount;
+  const styleSection = buildStyleSection({ styleName, samples, owned: !!useOwned });
+
   const message = await client.messages.create({
     model: cfg.model,
     max_tokens: 2000,
@@ -230,23 +248,25 @@ export async function generateRoomComment(item, cfg, { event = null, owned = nul
       content: buildRoomPrompt({
         item,
         persona: cfg.roomPersona,
-        maxChars: cfg.roomMaxChars,
-        hashtagCount: cfg.roomHashtags,
+        maxChars,
+        hashtagCount,
         event,
         owned: useOwned,
+        styleSection,
       }),
     }],
   });
 
   const toolUse = message.content.find((c) => c.type === 'tool_use');
   if (!toolUse) throw new Error('Claude が構造化出力を返しませんでした');
-  log(`ROOM紹介文を生成 [${useOwned ? '使用体験' : 'ペインファースト'}] (in=${message.usage.input_tokens} out=${message.usage.output_tokens} tokens)`);
+  log(`ROOM紹介文を生成 [${useOwned ? '使用体験' : 'ペインファースト'} / ${style.label}${samples.length ? ` / サンプル${samples.length}本` : ''}] (in=${message.usage.input_tokens} out=${message.usage.output_tokens} tokens)`);
 
   return sanitizeRoom(toolUse.input, {
-    maxChars: cfg.roomMaxChars,
-    hashtagCount: cfg.roomHashtags,
+    maxChars,
+    hashtagCount,
     disclosureRequired: cfg.disclosureRequired,
     disclosureText: cfg.roomDisclosureText,
     owned: !!useOwned,
+    register: style.register,
   });
 }

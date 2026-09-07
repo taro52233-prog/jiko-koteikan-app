@@ -351,3 +351,74 @@ test('API が失敗しても null を返して投稿を止めない', async (t) 
   }, { width: 200, height: 250 });
   assert.equal(r, null);
 });
+
+/* ---------------- 文体プロファイル ---------------- */
+
+test('文体プリセットごとに文字数とハッシュタグ数の既定が違う', async () => {
+  const { STYLE_PRESETS, resolveStyle } = await import('../src/content/style.js');
+  assert.equal(STYLE_PRESETS['casual-diary'].hashtagCount, 0, '独り言型はハッシュタグを使わない');
+  assert.ok(STYLE_PRESETS['casual-diary'].maxChars > STYLE_PRESETS.polished.maxChars,
+    '独り言型のほうが長い文を許す');
+  assert.equal(resolveStyle('casual-diary').register, 'casual');
+  assert.equal(resolveStyle('存在しない名前').label, STYLE_PRESETS['casual-diary'].label, '不明な名前は既定に落ちる');
+});
+
+test('サンプルからURL・ハッシュタグ・メンションを除去する', async () => {
+  const { stripNoise } = await import('../src/content/style.js');
+  assert.equal(
+    stripNoise('これ良かった #買ってよかった @someone https://t.co/abc'),
+    'これ良かった');
+});
+
+test('短すぎるサンプルは文体の材料にしない', async () => {
+  const { loadStyleSamples } = await import('../src/content/style.js');
+  const file = path.join(os.tmpdir(), `style-${Date.now()}.json`);
+  fs.writeFileSync(file, JSON.stringify({
+    profile: 'casual-diary',
+    samples: ['ここ4-7日で発送らしいので今買えばGWに使えるかなと思ってぽちった', 'いい', ''],
+  }));
+  const { profile, samples } = loadStyleSamples(file);
+  fs.unlinkSync(file);
+  assert.equal(profile, 'casual-diary');
+  assert.equal(samples.length, 1);
+});
+
+test('サンプルがあれば few-shot としてプロンプトに載り、流用を禁じる注意が付く', async () => {
+  const { buildStyleSection } = await import('../src/content/style.js');
+  const section = buildStyleSection({
+    styleName: 'casual-diary',
+    samples: ['ここ4-7日で発送らしいので今買えばGWに使えるかなと思ってぽちった https://t.co/x'],
+    owned: false,
+  });
+  assert.ok(section.includes('お手本'), 'few-shot セクションがある');
+  assert.ok(section.includes('ぽちった'), 'サンプル本文が載る');
+  assert.ok(!section.includes('https://'), 'URLは除去される');
+  assert.ok(section.includes('絶対に流用しないこと'), '内容の流用を禁じている');
+});
+
+test('未所有では所有前提の言い回しを禁じ、所有済みでは許可する', async () => {
+  const { buildStyleSection } = await import('../src/content/style.js');
+  const notOwned = buildStyleSection({ styleName: 'casual-diary', samples: [], owned: false });
+  const owned = buildStyleSection({ styleName: 'casual-diary', samples: [], owned: true });
+  assert.ok(notOwned.includes('書かない（持っていないため）'), notOwned.slice(-200));
+  assert.ok(notOwned.includes('迷ってる'));
+  assert.ok(owned.includes('ぽちった'));
+  assert.ok(!owned.includes('書かない（持っていないため）'));
+});
+
+test('砕けた文体では言い換えも砕けた形にする', () => {
+  const casual = sanitizeRoom({ variants: [{ angle: 'a', text: '毎日愛用しています' }], hashtags: [] },
+    { ...roomOpts, register: 'casual' });
+  const polite = sanitizeRoom({ variants: [{ angle: 'a', text: '毎日愛用しています' }], hashtags: [] },
+    { ...roomOpts, register: 'polite' });
+  assert.ok(casual.variants[0].text.includes('気になってて'), casual.variants[0].text);
+  assert.ok(polite.variants[0].text.includes('気になっていて'), polite.variants[0].text);
+});
+
+test('ハッシュタグ0指定なら1つも付けない', () => {
+  const out = sanitizeRoom(
+    { variants: [{ angle: 'a', text: 'これ良さそう' }], hashtags: ['タンブラー', '暮らし'] },
+    { ...roomOpts, hashtagCount: 0 });
+  assert.deepEqual(out.hashtags, []);
+  assert.ok(!out.variants[0].posting.includes('#タンブラー'));
+});
