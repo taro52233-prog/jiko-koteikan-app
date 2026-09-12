@@ -1,0 +1,39 @@
+<!--
+  Google広告 通話コンバージョン用スニペット
+  設置場所: 全ページの <head> 内（できるだけ上部、GTMタグより前でも後でも可）
+
+  ■ 差し替えが必要な2箇所
+    1. AW-18308126022/XXXXXXXXXXXXXXXXXXX
+       → Google広告で「ウェブサイトに掲載された電話番号への問い合わせ」の
+         コンバージョンアクションを作ると発行される 電話番号スニペット のIDに置換
+    2. '072-377-6933'
+       → サイトに表示している電話番号に置換。
+         サイト上の表記と一字一句同じ書式にすること（ハイフンの有無まで一致させる）
+
+  ■ 動作
+    広告クリック経由で訪問したユーザーにだけ、ページ内の電話番号が
+    Google転送番号（0800で始まる番号）に自動で置き換わる。
+    転送番号が割り当てられない場合は自社番号のまま表示されるので、害はない。
+
+  ■ GTMではなく直接設置する理由
+    転送番号への置き換えはページ表示時に走る必要があるが、
+    既存のGoogle広告タグはクリック時にしか読み込まれないため間に合わない。
+    GTMのカスタムHTML（初期化時）でも代替できるが、GTMの読み込みが非同期なぶん
+    元の番号が一瞬表示されることがある。
+-->
+
+<!-- Google tag (gtag.js) - Google広告 -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=AW-18308126022"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'AW-18308126022');
+</script>
+
+<!-- 電話番号スニペット（番号の動的差し替え） -->
+<script>
+  gtag('config', 'AW-18308126022/XXXXXXXXXXXXXXXXXXX', {
+    'phone_conversion_number': '072-377-6933'
+  });
+</script>
