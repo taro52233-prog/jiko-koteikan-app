@@ -1,0 +1,989 @@
+{
+  "exportFormatVersion": 2,
+  "exportTime": "2026-09-12 13:00:00",
+  "containerVersion": {
+    "path": "accounts/6373883068/containers/262563317/versions/0",
+    "accountId": "6373883068",
+    "containerId": "262563317",
+    "containerVersionId": "0",
+    "container": {
+      "path": "accounts/6373883068/containers/262563317",
+      "accountId": "6373883068",
+      "containerId": "262563317",
+      "name": "okatadukehonpo-you.com",
+      "publicId": "GTM-P5Z8L54D",
+      "usageContext": [
+        "WEB"
+      ],
+      "fingerprint": "1787926480193",
+      "tagManagerUrl": "https://tagmanager.google.com/#/container/accounts/6373883068/containers/262563317/workspaces?apiLink=container",
+      "features": {
+        "supportUserPermissions": true,
+        "supportEnvironments": true,
+        "supportWorkspaces": true,
+        "supportGtagConfigs": false,
+        "supportBuiltInVariables": true,
+        "supportClients": false,
+        "supportFolders": true,
+        "supportTags": true,
+        "supportTemplates": true,
+        "supportTriggers": true,
+        "supportVariables": true,
+        "supportVersions": true,
+        "supportZones": true,
+        "supportTransformations": false
+      },
+      "tagIds": [
+        "GTM-P5Z8L54D"
+      ]
+    },
+    "tag": [
+      {
+        "accountId": "6373883068",
+        "containerId": "262563317",
+        "tagId": "6",
+        "name": "コンバージョンリンカー",
+        "type": "gclidw",
+        "parameter": [
+          {
+            "type": "BOOLEAN",
+            "key": "enableCrossDomain",
+            "value": "false"
+          },
+          {
+            "type": "BOOLEAN",
+            "key": "enableUrlPassthrough",
+            "value": "false"
+          },
+          {
+            "type": "BOOLEAN",
+            "key": "enableCookieOverrides",
+            "value": "false"
+          }
+        ],
+        "fingerprint": "1787932262558",
+        "firingTriggerId": [
+          "2147479553"
+        ],
+        "tagFiringOption": "ONCE_PER_EVENT",
+        "monitoringMetadata": {
+          "type": "MAP"
+        },
+        "consentSettings": {
+          "consentStatus": "NOT_SET"
+        }
+      },
+      {
+        "accountId": "6373883068",
+        "containerId": "262563317",
+        "tagId": "7",
+        "name": "GA4",
+        "type": "googtag",
+        "parameter": [
+          {
+            "type": "TEMPLATE",
+            "key": "tagId",
+            "value": "G-CWT7GMVZD1"
+          }
+        ],
+        "fingerprint": "1787932326075",
+        "firingTriggerId": [
+          "2147479573"
+        ],
+        "tagFiringOption": "ONCE_PER_EVENT",
+        "monitoringMetadata": {
+          "type": "MAP"
+        },
+        "consentSettings": {
+          "consentStatus": "NOT_SET"
+        }
+      },
+      {
+        "accountId": "6373883068",
+        "containerId": "262563317",
+        "tagId": "8",
+        "name": "広告CV 電話",
+        "type": "awct",
+        "parameter": [
+          {
+            "type": "BOOLEAN",
+            "key": "enableNewCustomerReporting",
+            "value": "false"
+          },
+          {
+            "type": "BOOLEAN",
+            "key": "enableConversionLinker",
+            "value": "true"
+          },
+          {
+            "type": "BOOLEAN",
+            "key": "enableProductReporting",
+            "value": "false"
+          },
+          {
+            "type": "BOOLEAN",
+            "key": "enableShippingData",
+            "value": "false"
+          },
+          {
+            "type": "TEMPLATE",
+            "key": "conversionId",
+            "value": "18308126022"
+          },
+          {
+            "type": "TEMPLATE",
+            "key": "conversionLabel",
+            "value": "HgTECKzEuukcEMaq_5lE"
+          },
+          {
+            "type": "BOOLEAN",
+            "key": "rdp",
+            "value": "false"
+          }
+        ],
+        "fingerprint": "1787932538079",
+        "firingTriggerId": [
+          "3"
+        ],
+        "tagFiringOption": "ONCE_PER_LOAD",
+        "monitoringMetadata": {
+          "type": "MAP"
+        },
+        "consentSettings": {
+          "consentStatus": "NOT_SET"
+        }
+      },
+      {
+        "accountId": "6373883068",
+        "containerId": "262563317",
+        "tagId": "9",
+        "name": "広告CV LINE",
+        "type": "awct",
+        "parameter": [
+          {
+            "type": "BOOLEAN",
+            "key": "enableNewCustomerReporting",
+            "value": "false"
+          },
+          {
+            "type": "BOOLEAN",
+            "key": "enableConversionLinker",
+            "value": "true"
+          },
+          {
+            "type": "BOOLEAN",
+            "key": "enableProductReporting",
+            "value": "false"
+          },
+          {
+            "type": "BOOLEAN",
+            "key": "enableShippingData",
+            "value": "false"
+          },
+          {
+            "type": "TEMPLATE",
+            "key": "conversionId",
+            "value": "18308126022"
+          },
+          {
+            "type": "TEMPLATE",
+            "key": "conversionLabel",
+            "value": "hyL0CO3DuukcEMaq_5lE"
+          },
+          {
+            "type": "BOOLEAN",
+            "key": "rdp",
+            "value": "false"
+          }
+        ],
+        "fingerprint": "1787932578341",
+        "firingTriggerId": [
+          "4"
+        ],
+        "tagFiringOption": "ONCE_PER_LOAD",
+        "monitoringMetadata": {
+          "type": "MAP"
+        },
+        "consentSettings": {
+          "consentStatus": "NOT_SET"
+        }
+      },
+      {
+        "accountId": "6373883068",
+        "containerId": "262563317",
+        "tagId": "10",
+        "name": "広告CV フォーム",
+        "type": "awct",
+        "parameter": [
+          {
+            "type": "BOOLEAN",
+            "key": "enableNewCustomerReporting",
+            "value": "false"
+          },
+          {
+            "type": "BOOLEAN",
+            "key": "enableConversionLinker",
+            "value": "true"
+          },
+          {
+            "type": "BOOLEAN",
+            "key": "enableProductReporting",
+            "value": "false"
+          },
+          {
+            "type": "BOOLEAN",
+            "key": "enableShippingData",
+            "value": "false"
+          },
+          {
+            "type": "TEMPLATE",
+            "key": "conversionId",
+            "value": "18308126022"
+          },
+          {
+            "type": "TEMPLATE",
+            "key": "conversionLabel",
+            "value": "VJ99CK_EuukcEMaq_5lE"
+          },
+          {
+            "type": "BOOLEAN",
+            "key": "rdp",
+            "value": "false"
+          }
+        ],
+        "fingerprint": "1787932616807",
+        "firingTriggerId": [
+          "5"
+        ],
+        "tagFiringOption": "ONCE_PER_EVENT",
+        "monitoringMetadata": {
+          "type": "MAP"
+        },
+        "consentSettings": {
+          "consentStatus": "NOT_SET"
+        }
+      },
+      {
+        "accountId": "6373883068",
+        "containerId": "262563317",
+        "tagId": "11",
+        "name": "電話タップ",
+        "type": "gaawe",
+        "parameter": [
+          {
+            "type": "BOOLEAN",
+            "key": "sendEcommerceData",
+            "value": "false"
+          },
+          {
+            "type": "TEMPLATE",
+            "key": "eventName",
+            "value": "tel_click"
+          },
+          {
+            "type": "TEMPLATE",
+            "key": "measurementIdOverride",
+            "value": "G-CWT7GMVZD1"
+          },
+          {
+            "type": "LIST",
+            "key": "eventSettingsTable",
+            "list": [
+              {
+                "type": "MAP",
+                "map": [
+                  {
+                    "type": "TEMPLATE",
+                    "key": "parameter",
+                    "value": "click_location"
+                  },
+                  {
+                    "type": "TEMPLATE",
+                    "key": "parameterValue",
+                    "value": "{{JS - CTA設置場所}}"
+                  }
+                ]
+              },
+              {
+                "type": "MAP",
+                "map": [
+                  {
+                    "type": "TEMPLATE",
+                    "key": "parameter",
+                    "value": "service_type"
+                  },
+                  {
+                    "type": "TEMPLATE",
+                    "key": "parameterValue",
+                    "value": "{{JS - サービス種別}}"
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "fingerprint": "1787932701638",
+        "firingTriggerId": [
+          "3"
+        ],
+        "tagFiringOption": "ONCE_PER_LOAD",
+        "monitoringMetadata": {
+          "type": "MAP"
+        },
+        "consentSettings": {
+          "consentStatus": "NOT_SET"
+        }
+      },
+      {
+        "accountId": "6373883068",
+        "containerId": "262563317",
+        "tagId": "12",
+        "name": "LINEクリック",
+        "type": "gaawe",
+        "parameter": [
+          {
+            "type": "BOOLEAN",
+            "key": "sendEcommerceData",
+            "value": "false"
+          },
+          {
+            "type": "TEMPLATE",
+            "key": "eventName",
+            "value": "line_click"
+          },
+          {
+            "type": "TEMPLATE",
+            "key": "measurementIdOverride",
+            "value": "G-CWT7GMVZD1"
+          },
+          {
+            "type": "LIST",
+            "key": "eventSettingsTable",
+            "list": [
+              {
+                "type": "MAP",
+                "map": [
+                  {
+                    "type": "TEMPLATE",
+                    "key": "parameter",
+                    "value": "click_location"
+                  },
+                  {
+                    "type": "TEMPLATE",
+                    "key": "parameterValue",
+                    "value": "{{JS - CTA設置場所}}"
+                  }
+                ]
+              },
+              {
+                "type": "MAP",
+                "map": [
+                  {
+                    "type": "TEMPLATE",
+                    "key": "parameter",
+                    "value": "service_type"
+                  },
+                  {
+                    "type": "TEMPLATE",
+                    "key": "parameterValue",
+                    "value": "{{JS - サービス種別}}"
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "fingerprint": "1787932738801",
+        "firingTriggerId": [
+          "4"
+        ],
+        "tagFiringOption": "ONCE_PER_LOAD",
+        "monitoringMetadata": {
+          "type": "MAP"
+        },
+        "consentSettings": {
+          "consentStatus": "NOT_SET"
+        }
+      },
+      {
+        "accountId": "6373883068",
+        "containerId": "262563317",
+        "tagId": "13",
+        "name": "フォーム送信完了",
+        "type": "gaawe",
+        "parameter": [
+          {
+            "type": "BOOLEAN",
+            "key": "sendEcommerceData",
+            "value": "false"
+          },
+          {
+            "type": "TEMPLATE",
+            "key": "eventName",
+            "value": "form_complete"
+          },
+          {
+            "type": "TEMPLATE",
+            "key": "measurementIdOverride",
+            "value": "G-CWT7GMVZD1"
+          },
+          {
+            "type": "LIST",
+            "key": "eventSettingsTable",
+            "list": [
+              {
+                "type": "MAP",
+                "map": [
+                  {
+                    "type": "TEMPLATE",
+                    "key": "parameter",
+                    "value": "service_type"
+                  },
+                  {
+                    "type": "TEMPLATE",
+                    "key": "parameterValue",
+                    "value": "{{JS - サービス種別}}"
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "fingerprint": "1787932776746",
+        "firingTriggerId": [
+          "5"
+        ],
+        "tagFiringOption": "ONCE_PER_EVENT",
+        "monitoringMetadata": {
+          "type": "MAP"
+        },
+        "consentSettings": {
+          "consentStatus": "NOT_SET"
+        }
+      },
+      {
+        "accountId": "6373883068",
+        "containerId": "262563317",
+        "tagId": "100",
+        "name": "メールクリック",
+        "type": "gaawe",
+        "parameter": [
+          {
+            "type": "BOOLEAN",
+            "key": "sendEcommerceData",
+            "value": "false"
+          },
+          {
+            "type": "TEMPLATE",
+            "key": "eventName",
+            "value": "mail_click"
+          },
+          {
+            "type": "LIST",
+            "key": "eventSettingsTable",
+            "list": [
+              {
+                "type": "MAP",
+                "map": [
+                  {
+                    "type": "TEMPLATE",
+                    "key": "parameter",
+                    "value": "click_location"
+                  },
+                  {
+                    "type": "TEMPLATE",
+                    "key": "parameterValue",
+                    "value": "{{JS - CTA設置場所}}"
+                  }
+                ]
+              },
+              {
+                "type": "MAP",
+                "map": [
+                  {
+                    "type": "TEMPLATE",
+                    "key": "parameter",
+                    "value": "service_type"
+                  },
+                  {
+                    "type": "TEMPLATE",
+                    "key": "parameterValue",
+                    "value": "{{JS - サービス種別}}"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "TEMPLATE",
+            "key": "measurementIdOverride",
+            "value": "G-CWT7GMVZD1"
+          }
+        ],
+        "fingerprint": "0",
+        "firingTriggerId": [
+          "100"
+        ],
+        "tagFiringOption": "ONCE_PER_LOAD",
+        "monitoringMetadata": {
+          "type": "MAP"
+        },
+        "consentSettings": {
+          "consentStatus": "NOT_SET"
+        }
+      },
+      {
+        "accountId": "6373883068",
+        "containerId": "262563317",
+        "tagId": "101",
+        "name": "動画再生",
+        "type": "gaawe",
+        "parameter": [
+          {
+            "type": "BOOLEAN",
+            "key": "sendEcommerceData",
+            "value": "false"
+          },
+          {
+            "type": "TEMPLATE",
+            "key": "eventName",
+            "value": "video_start"
+          },
+          {
+            "type": "LIST",
+            "key": "eventSettingsTable",
+            "list": [
+              {
+                "type": "MAP",
+                "map": [
+                  {
+                    "type": "TEMPLATE",
+                    "key": "parameter",
+                    "value": "video_title"
+                  },
+                  {
+                    "type": "TEMPLATE",
+                    "key": "parameterValue",
+                    "value": "{{Video Title}}"
+                  }
+                ]
+              },
+              {
+                "type": "MAP",
+                "map": [
+                  {
+                    "type": "TEMPLATE",
+                    "key": "parameter",
+                    "value": "video_url"
+                  },
+                  {
+                    "type": "TEMPLATE",
+                    "key": "parameterValue",
+                    "value": "{{Video URL}}"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "TEMPLATE",
+            "key": "measurementIdOverride",
+            "value": "G-CWT7GMVZD1"
+          }
+        ],
+        "fingerprint": "0",
+        "firingTriggerId": [
+          "101"
+        ],
+        "tagFiringOption": "ONCE_PER_EVENT",
+        "monitoringMetadata": {
+          "type": "MAP"
+        },
+        "consentSettings": {
+          "consentStatus": "NOT_SET"
+        }
+      }
+    ],
+    "trigger": [
+      {
+        "accountId": "6373883068",
+        "containerId": "262563317",
+        "triggerId": "3",
+        "name": "電話タップ",
+        "type": "LINK_CLICK",
+        "filter": [
+          {
+            "type": "CONTAINS",
+            "parameter": [
+              {
+                "type": "TEMPLATE",
+                "key": "arg0",
+                "value": "{{Click URL}}"
+              },
+              {
+                "type": "TEMPLATE",
+                "key": "arg1",
+                "value": "tel:"
+              }
+            ]
+          }
+        ],
+        "autoEventFilter": [
+          {
+            "type": "CONTAINS",
+            "parameter": [
+              {
+                "type": "TEMPLATE",
+                "key": "arg0",
+                "value": "{{Page URL}}"
+              },
+              {
+                "type": "TEMPLATE",
+                "key": "arg1",
+                "value": "okatadukehonpo-you.com"
+              }
+            ]
+          }
+        ],
+        "waitForTags": {
+          "type": "BOOLEAN",
+          "value": "true"
+        },
+        "checkValidation": {
+          "type": "BOOLEAN",
+          "value": "false"
+        },
+        "waitForTagsTimeout": {
+          "type": "TEMPLATE",
+          "value": "2000"
+        },
+        "uniqueTriggerId": {
+          "type": "TEMPLATE"
+        },
+        "fingerprint": "1787932033541"
+      },
+      {
+        "accountId": "6373883068",
+        "containerId": "262563317",
+        "triggerId": "4",
+        "name": "LINEクリック",
+        "type": "LINK_CLICK",
+        "filter": [
+          {
+            "type": "MATCH_REGEX",
+            "parameter": [
+              {
+                "type": "TEMPLATE",
+                "key": "arg0",
+                "value": "{{Click URL}}"
+              },
+              {
+                "type": "TEMPLATE",
+                "key": "arg1",
+                "value": "lin\\.ee|line\\.me|line\\.naver\\.jp"
+              }
+            ]
+          }
+        ],
+        "autoEventFilter": [
+          {
+            "type": "CONTAINS",
+            "parameter": [
+              {
+                "type": "TEMPLATE",
+                "key": "arg0",
+                "value": "{{Page URL}}"
+              },
+              {
+                "type": "TEMPLATE",
+                "key": "arg1",
+                "value": "okatadukehonpo-you.com"
+              }
+            ]
+          }
+        ],
+        "waitForTags": {
+          "type": "BOOLEAN",
+          "value": "true"
+        },
+        "checkValidation": {
+          "type": "BOOLEAN",
+          "value": "false"
+        },
+        "waitForTagsTimeout": {
+          "type": "TEMPLATE",
+          "value": "2000"
+        },
+        "uniqueTriggerId": {
+          "type": "TEMPLATE"
+        },
+        "fingerprint": "1787932109014"
+      },
+      {
+        "accountId": "6373883068",
+        "containerId": "262563317",
+        "triggerId": "5",
+        "name": "フォーム送信完了",
+        "type": "ELEMENT_VISIBILITY",
+        "fingerprint": "1787933942673",
+        "parameter": [
+          {
+            "type": "BOOLEAN",
+            "key": "useOnScreenDuration",
+            "value": "false"
+          },
+          {
+            "type": "BOOLEAN",
+            "key": "useDomChangeListener",
+            "value": "true"
+          },
+          {
+            "type": "TEMPLATE",
+            "key": "elementSelector",
+            "value": ".mw_wp_form_complete"
+          },
+          {
+            "type": "TEMPLATE",
+            "key": "firingFrequency",
+            "value": "ONCE"
+          },
+          {
+            "type": "TEMPLATE",
+            "key": "selectorType",
+            "value": "CSS"
+          },
+          {
+            "type": "TEMPLATE",
+            "key": "onScreenRatio",
+            "value": "50"
+          }
+        ]
+      },
+      {
+        "accountId": "6373883068",
+        "containerId": "262563317",
+        "triggerId": "100",
+        "name": "メールクリック",
+        "type": "LINK_CLICK",
+        "filter": [
+          {
+            "type": "CONTAINS",
+            "parameter": [
+              {
+                "type": "TEMPLATE",
+                "key": "arg0",
+                "value": "{{Click URL}}"
+              },
+              {
+                "type": "TEMPLATE",
+                "key": "arg1",
+                "value": "mailto:"
+              }
+            ]
+          }
+        ],
+        "autoEventFilter": [
+          {
+            "type": "CONTAINS",
+            "parameter": [
+              {
+                "type": "TEMPLATE",
+                "key": "arg0",
+                "value": "{{Page URL}}"
+              },
+              {
+                "type": "TEMPLATE",
+                "key": "arg1",
+                "value": "okatadukehonpo-you.com"
+              }
+            ]
+          }
+        ],
+        "waitForTags": {
+          "type": "BOOLEAN",
+          "value": "false"
+        },
+        "checkValidation": {
+          "type": "BOOLEAN",
+          "value": "false"
+        },
+        "waitForTagsTimeout": {
+          "type": "TEMPLATE",
+          "value": "2000"
+        },
+        "uniqueTriggerId": {
+          "type": "TEMPLATE"
+        },
+        "fingerprint": "0"
+      },
+      {
+        "accountId": "6373883068",
+        "containerId": "262563317",
+        "triggerId": "101",
+        "name": "YouTube 再生開始",
+        "type": "YOU_TUBE_VIDEO",
+        "parameter": [
+          {
+            "type": "BOOLEAN",
+            "key": "captureStart",
+            "value": "true"
+          },
+          {
+            "type": "BOOLEAN",
+            "key": "captureComplete",
+            "value": "false"
+          },
+          {
+            "type": "BOOLEAN",
+            "key": "capturePause",
+            "value": "false"
+          },
+          {
+            "type": "BOOLEAN",
+            "key": "captureProgress",
+            "value": "false"
+          },
+          {
+            "type": "BOOLEAN",
+            "key": "fixMissingApi",
+            "value": "true"
+          },
+          {
+            "type": "TEMPLATE",
+            "key": "triggerStartOption",
+            "value": "WINDOW_LOAD"
+          }
+        ],
+        "fingerprint": "0"
+      }
+    ],
+    "builtInVariable": [
+      {
+        "accountId": "6373883068",
+        "containerId": "262563317",
+        "type": "PAGE_URL",
+        "name": "Page URL"
+      },
+      {
+        "accountId": "6373883068",
+        "containerId": "262563317",
+        "type": "PAGE_HOSTNAME",
+        "name": "Page Hostname"
+      },
+      {
+        "accountId": "6373883068",
+        "containerId": "262563317",
+        "type": "PAGE_PATH",
+        "name": "Page Path"
+      },
+      {
+        "accountId": "6373883068",
+        "containerId": "262563317",
+        "type": "REFERRER",
+        "name": "Referrer"
+      },
+      {
+        "accountId": "6373883068",
+        "containerId": "262563317",
+        "type": "EVENT",
+        "name": "Event"
+      },
+      {
+        "accountId": "6373883068",
+        "containerId": "262563317",
+        "type": "CLICK_CLASSES",
+        "name": "Click Classes"
+      },
+      {
+        "accountId": "6373883068",
+        "containerId": "262563317",
+        "type": "CLICK_URL",
+        "name": "Click URL"
+      },
+      {
+        "accountId": "6373883068",
+        "containerId": "262563317",
+        "type": "CLICK_TEXT",
+        "name": "Click Text"
+      },
+      {
+        "accountId": "6373883068",
+        "containerId": "262563317",
+        "type": "CLICK_ELEMENT",
+        "name": "Click Element"
+      },
+      {
+        "accountId": "6373883068",
+        "containerId": "262563317",
+        "type": "CLICK_ID",
+        "name": "Click ID"
+      },
+      {
+        "accountId": "6373883068",
+        "containerId": "262563317",
+        "type": "VIDEO_PROVIDER",
+        "name": "Video Provider"
+      },
+      {
+        "accountId": "6373883068",
+        "containerId": "262563317",
+        "type": "VIDEO_STATUS",
+        "name": "Video Status"
+      },
+      {
+        "accountId": "6373883068",
+        "containerId": "262563317",
+        "type": "VIDEO_URL",
+        "name": "Video URL"
+      },
+      {
+        "accountId": "6373883068",
+        "containerId": "262563317",
+        "type": "VIDEO_TITLE",
+        "name": "Video Title"
+      },
+      {
+        "accountId": "6373883068",
+        "containerId": "262563317",
+        "type": "VIDEO_PERCENT",
+        "name": "Video Percent"
+      }
+    ],
+    "variable": [
+      {
+        "accountId": "6373883068",
+        "containerId": "262563317",
+        "variableId": "100",
+        "name": "JS - CTA設置場所",
+        "type": "jsm",
+        "parameter": [
+          {
+            "type": "TEMPLATE",
+            "key": "javascript",
+            "value": "/* GTM カスタムJavaScript変数: JS - CTA設置場所\n   クリックされた要素から、CTAがページのどこに置かれているかを判定する。\n   data-cta 属性があればそれを最優先。無ければ祖先要素のclass/idから推定する。\n   ※ 組み込み変数「Click Element」が有効である必要がある。 */\nfunction () {\n  var el = {{Click Element}};\n  if (!el || !el.closest) { return 'unknown'; }\n\n  var explicit = el.closest('[data-cta]');\n  if (explicit && explicit.getAttribute('data-cta')) {\n    return explicit.getAttribute('data-cta');\n  }\n\n  /* 上から順に判定するので並び順が重要。追従バーはfooter内にあることが多いので先に判定する */\n  var rules = [\n    ['[class*=\"fixed\"],[class*=\"float\"],[class*=\"sticky\"],[id*=\"fixed\"],[id*=\"float\"],[class*=\"sp-cta\"]', 'fixed_bar'],\n    ['header,[class*=\"header\"],[id*=\"header\"],[class*=\"gnav\"]', 'header'],\n    ['[class*=\"mv\"],[class*=\"hero\"],[class*=\"fv\"],[class*=\"keyvisual\"],[class*=\"firstview\"]', 'fv'],\n    ['[class*=\"price\"],[class*=\"ryokin\"],[class*=\"fee\"],[class*=\"plan\"]', 'price'],\n    ['[class*=\"case\"],[class*=\"voice\"],[class*=\"jirei\"],[class*=\"works\"]', 'case'],\n    ['form,[class*=\"form\"],[class*=\"contact\"],[id*=\"contact\"]', 'contact'],\n    ['footer,[class*=\"footer\"],[id*=\"footer\"]', 'footer']\n  ];\n\n  for (var i = 0; i < rules.length; i++) {\n    if (el.closest(rules[i][0])) { return rules[i][1]; }\n  }\n  return 'body';\n}"
+          }
+        ],
+        "fingerprint": "0",
+        "notes": "クリックされたCTAの設置場所を返す。data-cta属性を最優先。"
+      },
+      {
+        "accountId": "6373883068",
+        "containerId": "262563317",
+        "variableId": "101",
+        "name": "JS - サービス種別",
+        "type": "jsm",
+        "parameter": [
+          {
+            "type": "TEMPLATE",
+            "key": "javascript",
+            "value": "/* GTM カスタムJavaScript変数: JS - サービス種別\n   URLのパスから、どのサービスのページで発生したイベントかを判定する。\n   パスは実サイトの構成に合わせて追記・修正してください。 */\nfunction () {\n  var p = (document.location.pathname || '').toLowerCase();\n\n  var rules = [\n    ['/menu_details/organize', 'ihin_seiri'],\n    ['/menu_details/collect',  'fuyouhin_kaishu'],\n    ['gomiyashiki',            'gomiyashiki'],\n    ['gomi-yashiki',           'gomiyashiki'],\n    ['seizen',                 'seizen_seiri'],\n    ['tokushu',                'tokushu_seisou'],\n    ['tokusyu',                'tokushu_seisou'],\n    ['clean',                  'house_cleaning'],\n    ['kaitori',                'kaitori']\n  ];\n\n  for (var i = 0; i < rules.length; i++) {\n    if (p.indexOf(rules[i][0]) !== -1) { return rules[i][1]; }\n  }\n  return p === '/' ? 'top' : 'other';\n}"
+          }
+        ],
+        "fingerprint": "0",
+        "notes": "URLパスからサービス種別を返す。パスは実サイトに合わせて調整。"
+      }
+    ],
+    "name": "okatadukehonpo-you 計測設計 v2 (既存構成に統合)",
+    "description": "既存の8タグ・3トリガーを保持したまま、CTA設置場所/サービス種別の計測とLINE計測漏れの修正を追加"
+  }
+}
