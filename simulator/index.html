@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <link rel="icon" href="data:,">
 <title>遺品整理 お見積りシミュレーター</title>
-<meta name="description" content="9つの質問にお答えいただくと、おおよその作業規模とお見積りの目安がわかります。">
+<meta name="description" content="8つの質問にお答えいただくと、おおよその作業規模とお見積りの目安がわかります。">
 <style>
   :root{
     --bg:#F6F4F0; --card:#FFFFFF; --ink:#22303C; --muted:#67767F;
@@ -95,6 +95,9 @@
   .opt-img .opt-label{font-size:.95rem;line-height:1.45}
   .opt-img.wide{grid-column:1/-1;flex-direction:row;align-items:center;padding:14px 16px;min-height:60px;gap:13px}
   .opt-img.wide svg{display:none}
+  .opt-img.row{grid-column:1/-1;flex-direction:row;align-items:stretch;gap:0}
+  .opt-img.row svg{width:130px;flex:none;border-bottom:0;border-right:1px solid var(--line)}
+  .opt-img.row .cap{flex:1;display:flex;flex-direction:column;justify-content:center}
 
   /* ---- ボタン ---- */
   .btn{
@@ -210,7 +213,7 @@
     <div id="resumeSlot"></div>
     <div class="card">
       <h1>おおよその作業規模と<br>お見積りの目安がわかります</h1>
-      <p class="lead" style="margin-top:12px">9つの質問にお答えください。所要時間はおよそ60秒です。</p>
+      <p class="lead" style="margin-top:12px">8つの質問にお答えください。所要時間はおよそ60秒です。</p>
       <ul class="promises">
         <li><span class="tick">✓</span><span>ご入力の途中で料金は一切かかりません</span></li>
         <li><span class="tick">✓</span><span>お名前・ご住所の入力は不要です</span></li>
@@ -232,10 +235,10 @@
   <!-- 特殊清掃の分岐 -->
   <section class="screen" id="scr-hazard" style="padding-top:26px">
     <div class="card">
-      <h2 class="q-title">このご状況は、<br>概算をお出しするべきではないと考えています</h2>
+      <h2 class="q-title">この内容は、画面上で<br>金額をお出しするべきではないと考えています</h2>
       <p class="lead" style="margin-top:14px;line-height:1.85">
-        お伺いした状況ですと、必要な作業が現場によって大きく異なります。
-        画面上の数字をお出しすることは、かえってご迷惑をおかけすると考えております。
+        お伺いした内容ですと、必要な作業が現場によって大きく異なります。
+        ここで数字をお出しすることは、かえってご迷惑をおかけすると考えております。
       </p>
       <p class="lead" style="margin-top:14px;line-height:1.85">
         専門の資格を持つスタッフが、無料でご相談をお受けします。
@@ -337,17 +340,7 @@ const STEPS = [
       { label:'生前整理・ご自身のお片付け' },
       { label:'施設へのご入居にともなう片付け' },
       { label:'空き家の片付け' },
-    ]},
-
-  { id:'hazard', type:'multi',
-    title:'次のことに当てはまるものはありますか',
-    help:'当てはまる場合、通常とは異なる専門の作業が必要になります。該当がなければ一番下をお選びください。',
-    options:[
-      { label:'室内でお亡くなりになり、時間が経っている' },
-      { label:'強いにおいが残っている' },
-      { label:'害虫が発生している' },
-      { label:'ごみが天井近くまで積まれている' },
-      { label:'当てはまるものはない', none:true },
+      { label:'まずは相談したい', note:'お部屋の状態が心配な場合はこちら', consult:true },
     ]},
 
   { id:'layout',   type:'single', src:'layout',
@@ -430,6 +423,14 @@ const ROOM_ITEMS = [
     {x:5,y:18,w:19,h:15},  {x:29,y:16,w:21,h:16}, {x:53,y:19,w:18,h:14}, {x:76,y:15,w:22,h:17}, {x:104,y:18,w:20,h:15},
     {x:128,y:20,w:20,h:16},
     {x:10,y:33,w:17,h:13}, {x:36,y:32,w:20,h:14}, {x:62,y:33,w:16,h:12}, {x:88,y:32,w:19,h:14}, {x:114,y:36,w:18,h:13} ],
+  /* 4: 足の踏み場がない（個別のご相談へ） */
+  [ {x:0,y:0,w:23,h:20},  {x:25,y:0,w:20,h:18}, {x:47,y:0,w:25,h:21}, {x:74,y:0,w:19,h:17},
+    {x:95,y:0,w:24,h:20}, {x:121,y:0,w:22,h:19},{x:145,y:0,w:16,h:17},
+    {x:3,y:20,w:21,h:17}, {x:27,y:18,w:23,h:19},{x:53,y:21,w:19,h:16}, {x:75,y:17,w:24,h:20}, {x:102,y:20,w:21,h:17},
+    {x:126,y:19,w:23,h:18},
+    {x:6,y:37,w:19,h:16}, {x:29,y:37,w:22,h:17},{x:55,y:37,w:20,h:15}, {x:79,y:37,w:23,h:18}, {x:106,y:37,w:19,h:16},
+    {x:129,y:37,w:21,h:17},
+    {x:14,y:54,w:20,h:15}, {x:40,y:54,w:23,h:16},{x:68,y:53,w:19,h:14}, {x:92,y:55,w:22,h:16}, {x:119,y:54,w:20,h:15} ],
 ];
 
 function roomSVG(level){
@@ -483,6 +484,8 @@ function calculate(a){
   const labor    = qMul(hours,  qOf(r.laborPerHour));
   const disposal = qMul(volume, qOf(r.disposalPerCbm));
   const truck    = qMul(truckQty, qOf(r.truckPerUnit));
+  /* 荷物が少なくても1台は出すため、下限が1台分を割らないようにする */
+  if (truck.c - truck.d < r.truckPerUnit[0]) truck.d = Math.max(0, truck.c - r.truckPerUnit[0]);
 
   /* 人件費・処分費・車両費はいずれも荷物量で動くため、幅はそのまま足す */
   let base = qAddC(qAddC(labor, disposal), truck);
@@ -512,18 +515,26 @@ function calculate(a){
   const totalArr = qArr(total);
   if (totalArr[0] < 0) totalArr[0] = 0;
 
-  /* 作業体制の目安 */
+  /* 作業体制の目安
+     人数 … 荷物量で決めたうえで、搬出条件が厳しければ1名増やす
+     日数 … 作業人時 ÷（人数 × 1日の稼働時間）。0.5日単位で丸め、
+            半端が出たら「1〜2日」のように幅で示す */
   const volMid   = volume.c;
   const hoursMid = hours.c;
-  const staff    = (P.crew.staffByCbm.find(x => volMid <= x.upTo) || { staff:4 }).staff;
+  let   staff    = (P.crew.staffByCbm.find(x => volMid <= x.upTo) || { staff:4 }).staff;
+  const hardAccess = (!B.unknown  && (B.coef[0]  + B.coef[1])  / 2 >= 1.25) ||
+                     (!PK.unknown && (PK.coef[0] + PK.coef[1]) / 2 >= 1.20);
+  if (P.crew.addStaffOnHardAccess && hardAccess) staff += 1;
   const days     = Math.max(1, Math.round(hoursMid / (staff * P.crew.hoursPerStaffPerDay) * 2) / 2);
+  const daysLabel = days % 1 ? Math.floor(days) + '〜' + Math.ceil(days) + '日' : days + '日';
   const trucks   = Math.max(1, Math.ceil(volMid / r.cbmPerTruck));
 
   return {
     volume:qArr(volume), hours:qArr(hours), labor:qArr(labor),
     disposal:qArr(disposal), truck:qArr(truck), opts:qArr(opts),
     optRows:optRows, total:totalArr,
-    unknowns:unknowns, staff:staff, days:days, trucks:trucks,
+    unknowns:unknowns, staff:staff, days:days, daysLabel:daysLabel,
+    hardAccess:hardAccess, trucks:trucks,
     volMid:volMid, hoursMid:hoursMid, truckLabel:String(trucks),
   };
 }
@@ -577,7 +588,8 @@ function renderStep(){
     const grid = el('div', 'opts-img');
     s.options.forEach((o, i) => {
       const isUnknown = !!o.unknown;
-      const b = el('button', 'opt-img' + (isUnknown ? ' wide unknown' : '') + (state.ans[s.id] === i ? ' sel' : ''));
+      const shape = isUnknown ? ' wide unknown' : (o.consult ? ' row' : '');
+      const b = el('button', 'opt-img' + shape + (state.ans[s.id] === i ? ' sel' : ''));
       b.type = 'button';
       b.innerHTML =
         (isUnknown ? '' : roomSVG(i)) +
@@ -653,19 +665,27 @@ function toggleMulti(s, key, isNone){
   renderStep();
 }
 
+/* 専門の作業が必要な回答かどうか。
+   該当したら金額は出さず、個別のご相談へ分岐します。 */
+function needsConsult(s){
+  const v = state.ans[s.id];
+  if (s.type === 'multi') {
+    return (v || []).some(k => {
+      const o = s.options.find((x, i) => (x.key !== undefined ? x.key : i) === k);
+      return !!(o && o.consult);
+    });
+  }
+  return typeof v === 'number' && !!(s.options[v] || {}).consult;
+}
+
 function advance(){
   const s = STEPS[state.step];
 
-  /* 特殊清掃の分岐：金額は出さず、個別のご相談へ */
-  if (s.id === 'hazard') {
-    const picked = state.ans.hazard || [];
-    const noneIdx = s.options.findIndex(o => o.none);
-    if (picked.length && picked.indexOf(noneIdx) < 0) {
-      track('hazard_branch', { items:picked.join(',') });
-      show('hazard');
-      updateChrome();
-      return;
-    }
+  if (needsConsult(s)) {
+    track('consult_branch', { step:s.id });
+    show('hazard');
+    updateChrome();
+    return;
   }
 
   if (state.step >= STEPS.length - 1) { renderResult(); return; }
@@ -697,9 +717,10 @@ function renderResult(){
   g.innerHTML = '';
   const rows = [
     ['お荷物の量', '約 ' + Math.round(rMid(c.volume)) + ' m³',
-      '2tトラック 約' + c.truckLabel + '台分'],
-    ['必要な作業', 'スタッフ ' + c.staff + '名 × ' + (c.days % 1 ? c.days.toFixed(1) : c.days) + '日',
-      '作業時間 およそ ' + Math.round(c.hoursMid) + '人時'],
+      P.rates.truckName + ' 約' + c.truckLabel + '台分'],
+    ['必要な作業', 'スタッフ ' + c.staff + '名 × ' + c.daysLabel,
+      '作業時間 およそ ' + Math.round(c.hoursMid) + '人時' +
+      (c.hardAccess ? '（搬出条件のため1名増員）' : '')],
     ['間取り', Q.layout[a.layout].label, Q.volume[a.volume].label],
   ];
   rows.forEach(r => {
@@ -793,8 +814,8 @@ function sendToTalk(){
     text: 'お見積りの目安\n' +
           '───────────\n' +
           '間取り：' + Q.layout[state.ans.layout].label + '\n' +
-          'お荷物：約' + Math.round(rMid(c.volume)) + 'm³（2tトラック約' + c.truckLabel + '台分）\n' +
-          '作業：スタッフ' + c.staff + '名 × ' + c.days + '日\n' +
+          'お荷物：約' + Math.round(rMid(c.volume)) + 'm³（' + P.rates.truckName + '約' + c.truckLabel + '台分）\n' +
+          '作業：スタッフ' + c.staff + '名 × ' + c.daysLabel + '\n' +
           '概算：' + yen(roundTo(c.total[0], P.roundTo)) + '〜' + yen(roundTo(c.total[1], P.roundTo)) + '\n' +
           '───────────\n' +
           '※概算です。現地確認のうえ正式なお見積りをお出しします。'
@@ -824,7 +845,7 @@ function renderDetail(host){
     '<p class="sect-sub">何にいくらかかっているかを、すべてお見せしています。</p><table class="breakdown">';
   html += row('人件費', 'スタッフ ' + c.staff + '名 / 約' + Math.round(c.hoursMid) + '人時', c.labor);
   html += row('処分費', '約' + Math.round(rMid(c.volume)) + 'm³ 分', c.disposal);
-  html += row('車両費', '2tトラック ' + c.truckLabel + '台', c.truck);
+  html += row('車両費', P.rates.truckName + ' ' + c.truckLabel + '台', c.truck);
   c.optRows.forEach(o => {
     html += row(o.label, '', R(o.amount[0], o.amount[1]), o.amount[1] <= 0);
   });
@@ -918,21 +939,19 @@ function pickCases(a){
    共有URL・再開
    ============================================================ */
 function encodeAnswers(a){
-  const opt = (a.options || []).join('~');
-  const haz = (a.hazard || []).join('~');
-  return [a.status, haz, a.layout, a.volume, a.building, a.parking, a.keep, opt, a.timing].join('.');
+  return [a.status, a.layout, a.volume, a.building, a.parking, a.keep,
+          (a.options || []).join('~'), a.timing].join('.');
 }
 function decodeAnswers(str){
   const p = String(str).split('.');
-  if (p.length < 9) return null;
+  if (p.length < 8) return null;
   const num = (v) => { const n = parseInt(v, 10); return isNaN(n) ? null : n; };
   const a = {
     status: num(p[0]),
-    hazard: p[1] ? p[1].split('~').map(Number) : [],
-    layout: num(p[2]), volume: num(p[3]), building: num(p[4]),
-    parking: num(p[5]), keep: num(p[6]),
-    options: p[7] ? p[7].split('~') : [],
-    timing: num(p[8]),
+    layout: num(p[1]), volume: num(p[2]), building: num(p[3]),
+    parking: num(p[4]), keep: num(p[5]),
+    options: p[6] ? p[6].split('~') : [],
+    timing: num(p[7]),
   };
   const ok = ['layout','volume','building','parking','keep','timing']
     .every(k => a[k] !== null && Q[k][a[k]]);

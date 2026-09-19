@@ -51,8 +51,9 @@ window.PRICING = {
   rates: {
     laborPerHour:     [3000, 3200],   // 1人時あたりの作業費（円）
     disposalPerCbm:   [5000, 6000],   // 1m³あたりの処分費（円）
-    truckPerUnit:     [18000, 20000], // トラック1台あたりの車両費（円）
-    cbmPerTruck:      7,              // 2tトラック1台に積める容量の目安（m³）
+    truckName:        '3tトラック',    // 画面に表示する車両の呼び方
+    truckPerUnit:     [24000, 28000], // トラック1台あたりの車両費（円）
+    cbmPerTruck:      10,             // 3tトラック1台に積める容量の目安（m³）
     hoursPerCbm:      [0.85, 1.05],   // 1m³を片付けるのにかかる人時
     // 2台目以降のトラック1台ごとに追加でかかる人時（積み下ろし・往復）
     hoursPerExtraTruck: [1.5, 2.5],
@@ -79,6 +80,8 @@ window.PRICING = {
       { label: '床の半分に物がある',   note: '一般的な生活状態',       coef: [0.80, 0.95] },
       { label: '床がほぼ埋まっている', note: '物が多いお宅',           coef: [1.10, 1.35] },
       { label: '腰の高さまで積まれている', note: '長年片付いていない', coef: [1.50, 1.90] },
+      // consult: true の選択肢は金額を出さず、個別のご相談へ分岐します
+      { label: '足の踏み場がない',     note: 'ごみ袋が積み上がっている', coef: [2.0, 3.0], consult: true },
       { label: 'わからない',           note: '久しく訪れていない',     coef: [0.55, 1.75], unknown: true },
     ],
 
@@ -111,6 +114,9 @@ window.PRICING = {
 
     // Q8 追加のご希望（複数選択）→ 金額を加算／控除
     options: [
+      // 専門の作業。選ばれた場合は金額を出さず、個別のご相談へ分岐します
+      { key: 'special', label: 'においや汚れの除去（特殊清掃）', consult: true },
+      { key: 'pest',    label: '害虫の駆除',                     consult: true },
       { key: 'butsudan', label: '仏壇・神棚のお焚き上げ',      amount: [20000, 35000] },
       { key: 'clean',    label: 'ハウスクリーニング',          amountByLayout: [
           [30000, 50000], [40000, 70000], [55000, 95000], [75000, 130000], [95000, 170000] ] },
@@ -137,10 +143,14 @@ window.PRICING = {
   roundTo: 1000,
 
   /* ---------- 8. 作業体制の目安 -------------------------------- */
+  // ★ ここは実績に合わせて必ず調整してください。
+  //   日数 ＝ 作業人時 ÷（人数 × hoursPerStaffPerDay）で出しています。
   crew: {
     hoursPerStaffPerDay: 6,  // スタッフ1人が1日に働く時間
     // 荷物量(m³)に応じた標準人数
     staffByCbm: [ { upTo: 10, staff: 2 }, { upTo: 22, staff: 3 }, { upTo: 999, staff: 4 } ],
+    // 搬出条件が厳しいとき（EVなしの3階以上・トラックが遠い）に1名増やす
+    addStaffOnHardAccess: true,
   },
 
   /* ---------- 9. 類似事例 -------------------------------------- */
