@@ -104,6 +104,7 @@
     display:flex;align-items:center;justify-content:center;gap:8px;width:100%;min-height:56px;
     border:0;border-radius:var(--radius);font:inherit;font-weight:700;font-size:1.05rem;
     cursor:pointer;transition:opacity .15s,transform .08s;padding:0 18px;
+    text-decoration:none;
   }
   .btn:active{transform:scale(.99)}
   .btn-primary{background:var(--accent);color:#fff}
@@ -152,6 +153,36 @@
     display:block;width:100%;text-align:center;margin-top:14px;background:none;border:0;
     font:inherit;font-size:.86rem;color:var(--muted);text-decoration:underline;cursor:pointer;padding:8px;
   }
+
+  /* ---- 見積書 ---- */
+  .quote{background:var(--card);border:1px solid var(--line-strong);border-radius:var(--radius-lg);
+    overflow:hidden;box-shadow:var(--shadow)}
+  .quote-head{background:var(--accent-deep);color:#fff;padding:16px 20px}
+  .quote-head h3{font-size:1.08rem;font-weight:700;letter-spacing:.06em}
+  .quote-meta{display:flex;flex-wrap:wrap;gap:3px 18px;margin-top:7px;font-size:.78rem;
+    opacity:.88;font-variant-numeric:tabular-nums;line-height:1.6}
+  .quote-body{padding:20px}
+  .quote-subject{font-size:.81rem;color:var(--muted);font-weight:700;letter-spacing:.06em}
+  .quote-subject b{display:block;font-size:1.02rem;color:var(--ink);font-weight:700;margin-top:3px;line-height:1.55}
+  .quote-total{margin:18px 0 20px;padding:17px 0;border-top:2px solid var(--accent-deep);
+    border-bottom:1px solid var(--line);text-align:center}
+  .quote-total .lbl{font-size:.82rem;color:var(--muted);font-weight:700;letter-spacing:.06em}
+  .quote-total .amt{font-size:1.75rem;font-weight:800;line-height:1.4;margin-top:4px;
+    font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+  .quote-total .amt .tilde{font-size:1.05rem;font-weight:600;color:var(--muted);margin:0 5px}
+  .quote-total .tax{font-size:.79rem;color:var(--muted);margin-top:3px}
+  .quote-sec{font-size:.79rem;font-weight:700;letter-spacing:.08em;color:var(--muted);
+    margin-bottom:2px;text-transform:none}
+  .quote-terms{margin-top:20px;padding-top:16px;border-top:1px solid var(--line)}
+  .quote-terms ul{list-style:none;display:flex;flex-direction:column;gap:5px;margin-top:8px;
+    font-size:.855rem;color:#46555F;line-height:1.7}
+  .quote-terms li{display:flex;gap:7px}
+  .quote-terms li::before{content:"・";flex-shrink:0}
+  .quote-sign{margin-top:18px;padding-top:15px;border-top:1px solid var(--line);font-size:.83rem;
+    line-height:1.75;color:var(--muted)}
+  .quote-sign b{display:block;font-size:.97rem;color:var(--ink);margin-bottom:2px}
+  table.breakdown tr.total td{border-top:2px solid var(--ink);border-bottom:0;font-weight:700;
+    padding-top:13px;font-size:1.02rem}
 
   /* ---- 金額 ---- */
   .price-box{text-align:center;padding:6px 0 4px}
@@ -232,32 +263,40 @@
     <div id="qFooter" style="margin-top:20px"></div>
   </section>
 
-  <!-- 特殊清掃の分岐 -->
+  <!-- 専門作業が必要な場合の分岐 -->
   <section class="screen" id="scr-hazard" style="padding-top:26px">
     <div class="card">
-      <h2 class="q-title">この内容は、画面上で<br>金額をお出しするべきではないと考えています</h2>
+      <h2 class="q-title">このお部屋は、現地を見ないと<br>金額が決まりません</h2>
       <p class="lead" style="margin-top:14px;line-height:1.85">
-        お伺いした内容ですと、必要な作業が現場によって大きく異なります。
-        ここで数字をお出しすることは、かえってご迷惑をおかけすると考えております。
+        専門の作業をともなうお部屋は、同じ間取りでも金額が数倍変わります。
+        ここで概算をお出しすると、現地でのお見積りと大きくずれてしまいます。
       </p>
-      <p class="lead" style="margin-top:14px;line-height:1.85">
-        専門の資格を持つスタッフが、無料でご相談をお受けします。
-        <b style="color:var(--ink)">お電話で立ち入った事情をお伺いすることはありません。</b>
-        ご都合のよい方法でご連絡ください。
+
+      <div class="sect-title" style="margin-top:24px">金額を決めるのは、この3つです</div>
+      <ul class="incl" style="margin-top:12px">
+        <li><span class="m">1</span><span>においや汚れが、床下や壁の内側までしみているか</span></li>
+        <li><span class="m">2</span><span>床材・壁紙の張り替えが必要か</span></li>
+        <li><span class="m">3</span><span>お荷物の量</span></li>
+      </ul>
+      <p class="lead" style="margin-top:14px;font-size:.92rem;line-height:1.8">
+        1と2は、実際に見なければ判断できません。写真でも正確にはわかりません。
       </p>
+    </div>
+
+    <div class="card mt">
+      <div class="sect-title">現地の確認は無料です</div>
+      <ul class="incl" style="margin-top:12px">
+        <li><span class="m yes">✓</span><span>お見積りをご覧になってから、お断りいただけます。費用はかかりません</span></li>
+        <li><span class="m yes">✓</span><span>社名の入っていない車両で伺えます</span></li>
+        <li><span class="m yes">✓</span><span>立ち会いは不要です。鍵をお預かりしての作業も承ります</span></li>
+        <li><span class="m yes">✓</span><span>事情を詳しくお話しいただく必要はありません</span></li>
+      </ul>
       <div class="stack" style="margin-top:22px">
-        <a class="btn btn-line" id="hazLine" href="#">LINEで相談する</a>
-        <a class="btn btn-ghost" id="hazTel" href="#">お電話で相談する</a>
+        <a class="btn btn-primary" id="hazReserve" href="#">現地の確認を申し込む（無料）</a>
+        <a class="btn btn-ghost btn-sm" id="hazTel" href="#">お電話で相談する</a>
+        <a class="btn btn-line btn-sm" id="hazLine" href="#">LINEで相談する</a>
       </div>
       <p class="gate-note" id="hazHours"></p>
-    </div>
-    <div class="card mt">
-      <div class="sect-title">お伺いしてからのことで、よくあるご不安</div>
-      <ul class="incl" style="margin-top:12px">
-        <li><span class="m yes">✓</span><span>ご近所に知られないよう、社名の入っていない車両で伺うことができます</span></li>
-        <li><span class="m yes">✓</span><span>立ち会いなしでの作業も承っています</span></li>
-        <li><span class="m yes">✓</span><span>お見積り後のキャンセルは無料です</span></li>
-      </ul>
     </div>
     <p class="license" id="hazLicense"></p>
   </section>
@@ -746,32 +785,26 @@ function renderGate(){
   const slot = $('gateSlot');
   const det  = $('detailSlot');
 
-  if (!P.gate.enabled || state.unlocked) {
+  if (P.gate.mode !== 'line' || state.unlocked) {
     slot.innerHTML = '';
     renderDetail(det);
     return;
   }
 
   det.innerHTML = '';
-  const locked = [
-    'お見積り金額（内訳つき）',
-    P.guarantee.enabled ? 'お支払い上限のお約束' : '追加費用が出る条件',
-    'お客様と近い条件の実績 3件',
-  ];
   slot.innerHTML =
     '<div class="gate">' +
-      '<div class="sect-title">続きをご覧いただけます</div>' +
-      '<p class="sect-sub">LINEでお送りします。友だち追加のみで、お名前やご住所の入力はありません。</p>' +
-      '<div class="gate-locked">' +
-        locked.map(t =>
-          '<div class="gate-locked-item">' +
-          '<svg class="lk" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8">' +
-          '<rect x="4" y="9" width="12" height="8" rx="2"/><path d="M7 9V6.5a3 3 0 0 1 6 0V9"/></svg>' +
-          t + '</div>').join('') +
-      '</div>' +
-      '<button class="btn btn-line" id="gateBtn">LINEで受け取る</button>' +
+      '<div class="sect-title">お見積書をLINEでお送りします</div>' +
+      '<p class="sect-sub">内訳のついた正式なお見積書を、そのままトークにお届けします。' +
+      'ご家族へ転送していただくこともできます。</p>' +
+      '<ul class="incl" style="margin:16px 0 20px">' +
+        '<li><span class="m yes">✓</span><span>お名前・ご住所・電話番号の入力はありません</span></li>' +
+        '<li><span class="m yes">✓</span><span>お見積書はトークに残るので、あとから見返せます</span></li>' +
+        '<li><span class="m yes">✓</span><span>ご不明な点は、そのままトークでお尋ねいただけます</span></li>' +
+      '</ul>' +
+      '<button class="btn btn-line" id="gateBtn">LINEでお見積書を受け取る</button>' +
       '<p class="gate-note">しつこい営業のご連絡はいたしません。<br>ブロックはいつでも可能です。</p>' +
-      (P.gate.demoUnlock ? '<button class="demo-link" id="demoBtn">（デモ）このまま結果を見る</button>' : '') +
+      (P.gate.demoUnlock ? '<button class="demo-link" id="demoBtn">（確認用）このまま画面で見る</button>' : '') +
     '</div>';
 
   $('gateBtn').onclick = onGate;
@@ -822,36 +855,69 @@ function sendToTalk(){
   }]).catch(()=>{});
 }
 
+/* 見積番号（同じ回答なら同じ番号になります） */
+function quoteNo(a){
+  const d = new Date();
+  const ymd = '' + d.getFullYear() + String(d.getMonth() + 1).padStart(2, '0') + String(d.getDate()).padStart(2, '0');
+  const src = encodeAnswers(a);
+  let h = 2166136261;
+  for (let i = 0; i < src.length; i++) { h ^= src.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; }
+  return ymd + '-' + h.toString(36).toUpperCase().slice(-4).padStart(4, '0');
+}
+function jpDate(d){ return d.getFullYear() + '年' + (d.getMonth() + 1) + '月' + d.getDate() + '日'; }
+
 function renderDetail(host){
   const c = calcCache, a = state.ans;
   const u = P.roundTo;
+  const today  = new Date();
+  const expiry = new Date(today.getTime() + (CO.quoteValidDays || 30) * 86400000);
 
   let html = '';
 
-  /* 金額 */
-  html += '<div class="card mt"><div class="result-eyebrow">お見積りの目安</div>' +
-    '<div class="price-box"><div class="price-main">' + yenRange(c.total) + '</div>' +
-    '<div class="price-cap">税込・お見積り無料・出張費込み</div></div></div>';
+  /* ---- お見積書 ---- */
+  html += '<div class="quote mt">' +
+    '<div class="quote-head"><h3>お見積書（概算）</h3>' +
+      '<div class="quote-meta">' +
+        '<span>No. ' + quoteNo(a) + '</span>' +
+        '<span>作成日 ' + jpDate(today) + '</span>' +
+        '<span>有効期限 ' + jpDate(expiry) + '</span>' +
+      '</div>' +
+    '</div>' +
+    '<div class="quote-body">' +
+      '<div class="quote-subject">件名<b>遺品整理一式（' + Q.layout[a.layout].label + '）' +
+        '<span style="display:block;font-size:.86rem;font-weight:500;color:var(--muted);margin-top:2px">お荷物 約' +
+        Math.round(rMid(c.volume)) + 'm³　／　' + P.rates.truckName + ' ' + c.truckLabel + '台</span></b></div>' +
+      '<div class="quote-total">' +
+        '<div class="lbl">概算総額</div>' +
+        '<div class="amt">' + yenRange(c.total) + '</div>' +
+        '<div class="tax">消費税込み・出張費込み</div>' +
+      '</div>' +
+      '<div class="quote-sec">明細</div><table class="breakdown">';
+  html += row('人件費', 'スタッフ ' + c.staff + '名 × ' + c.daysLabel + '（約' + Math.round(c.hoursMid) + '人時）', c.labor);
+  html += row('処分費', '約' + Math.round(rMid(c.volume)) + 'm³ 分', c.disposal);
+  html += row('車両費', P.rates.truckName + ' ' + c.truckLabel + '台', c.truck);
+  c.optRows.forEach(o => { html += row(o.label, '', R(o.amount[0], o.amount[1]), o.amount[1] <= 0); });
+  html += '<tr class="total"><td>合計（概算）</td><td>' +
+          yenRange(c.total).replace(/<span class="tilde">〜<\/span>/, ' 〜 ') + '</td></tr>';
+  html += '</table>' +
+      '<div class="quote-terms"><div class="quote-sec">お見積りの前提</div><ul>' +
+        '<li>お客様のご回答にもとづく概算です。契約金額ではありません。</li>' +
+        '<li>正式なお見積りは、無料の現地確認のうえでご提示します。</li>' +
+        '<li>お荷物の量・搬出経路により金額は変動します。</li>' +
+        '<li>ピアノ・金庫・仏壇など特別な運搬を要するものは含みません。</li>' +
+      '</ul></div>' +
+      '<div class="quote-sign"><b>' + CO.name + '</b>' + CO.tel + '　' + CO.telHours + '<br>' +
+        CO.license + '</div>' +
+    '</div></div>';
 
-  /* 上限のお約束 */
+  /* ---- 上限のお約束 ---- */
   if (P.guarantee.enabled) {
     html += '<div class="card mt"><div class="guarantee">' +
       '<b>' + yen(roundTo(c.total[1], u)) + ' を超えることはありません</b>' +
       P.guarantee.text + '</div></div>';
   }
 
-  /* 内訳 */
-  html += '<div class="card mt"><div class="sect-title">お見積りの内訳</div>' +
-    '<p class="sect-sub">何にいくらかかっているかを、すべてお見せしています。</p><table class="breakdown">';
-  html += row('人件費', 'スタッフ ' + c.staff + '名 / 約' + Math.round(c.hoursMid) + '人時', c.labor);
-  html += row('処分費', '約' + Math.round(rMid(c.volume)) + 'm³ 分', c.disposal);
-  html += row('車両費', P.rates.truckName + ' ' + c.truckLabel + '台', c.truck);
-  c.optRows.forEach(o => {
-    html += row(o.label, '', R(o.amount[0], o.amount[1]), o.amount[1] <= 0);
-  });
-  html += '</table></div>';
-
-  /* レンジの理由 */
+  /* ---- レンジの理由 ---- */
   const f = factors(a);
   html += '<div class="card mt"><div class="sect-title">この幅が出ている理由</div>' +
     '<p class="sect-sub">お見積りに幅があるのは、次の点が現地で変わりうるためです。</p><ul class="incl">';
@@ -861,7 +927,7 @@ function renderDetail(host){
     c.unknowns.length + 'つあるため、幅を広めに取っています。現地確認で確定します。</span></li>';
   html += '</ul></div>';
 
-  /* 費用を抑える方法 */
+  /* ---- 費用を抑える方法 ---- */
   html += '<div class="card mt"><div class="sect-title">費用を抑える方法</div>' +
     '<p class="sect-sub">当社にご依頼いただかない場合でも役に立つ情報です。</p><ul class="incl">' +
     '<li><span class="m yes">✓</span><span>衣類・書籍をご自身で処分されると、2〜3万円ほど下がります</span></li>' +
@@ -870,7 +936,7 @@ function renderDetail(host){
     '<li><span class="m yes">✓</span><span>自治体の粗大ごみ回収と併用すると、処分費を圧縮できます</span></li>' +
     '</ul></div>';
 
-  /* 類似事例 */
+  /* ---- 類似事例 ---- */
   const cases = pickCases(a);
   if (cases.length) {
     html += '<div class="card mt"><div class="sect-title">近い条件でのご依頼の実績</div>' +
@@ -884,7 +950,7 @@ function renderDetail(host){
     html += '</div>';
   }
 
-  /* 含まれるもの / 含まれないもの */
+  /* ---- 含まれるもの / 含まれないもの ---- */
   html += '<div class="card mt"><div class="sect-title">この金額に含まれるもの</div><ul class="incl" style="margin-top:12px">' +
     '<li><span class="m yes">✓</span><span>仕分け・梱包・搬出の作業費</span></li>' +
     '<li><span class="m yes">✓</span><span>一般的な家財の処分費・運搬費・出張費</span></li>' +
@@ -896,7 +962,7 @@ function renderDetail(host){
     '<li><span class="m no">×</span><span>上でお選びいただかなかったハウスクリーニング等</span></li>' +
     '</ul></div>';
 
-  /* 比較のチェックリスト（相見積もりの物差しをこちらから配る） */
+  /* ---- 比較のチェックリスト ---- */
   html += '<div class="card mt"><div class="sect-title">他社様とお比べになるときは</div>' +
     '<p class="sect-sub">どちらにご依頼される場合でも、この4点はご確認ください。</p><ul class="incl">' +
     '<li><span class="m">1</span><span>追加料金が発生する条件が、書面に明記されているか</span></li>' +
@@ -905,7 +971,7 @@ function renderDetail(host){
     '<li><span class="m">4</span><span>キャンセル規定が事前に示されているか</span></li>' +
     '</ul></div>';
 
-  /* 次の一歩 */
+  /* ---- 次の一歩 ---- */
   html += '<div class="card mt"><div class="sect-title">次のお手続き</div>' +
     '<p class="sect-sub">現地確認は無料です。その場でのご契約をお願いすることはありません。</p>' +
     '<div class="stack" style="margin-top:16px">' +
@@ -918,7 +984,7 @@ function renderDetail(host){
   if (rb) rb.onclick = () => track('cta_reserve', {});
   if (tb) tb.onclick = () => track('cta_tel', {});
 
-  track('result_detail_view', { lo:roundTo(c.total[0],u), hi:roundTo(c.total[1],u) });
+  track('result_detail_view', { lo:roundTo(c.total[0], u), hi:roundTo(c.total[1], u) });
 }
 
 function row(label, note, range, isMinus){
@@ -975,8 +1041,12 @@ function boot(){
   $('resLicense').textContent = CO.license;
   $('hazLine').href = P.line.addFriendUrl;
   $('hazTel').href  = 'tel:' + CO.tel.replace(/[^0-9+]/g, '');
-  $('hazLine').onclick = () => track('hazard_line', {});
-  $('hazTel').onclick  = () => track('hazard_tel', {});
+  $('hazReserve').href = CO.reserveUrl;
+  $('hazLine').onclick    = () => track('consult_line', {});
+  $('hazTel').onclick     = () => track('consult_tel', {});
+  $('hazReserve').onclick = () => track('consult_reserve', {});
+  /* LINEを使わない構成では、LINEの導線を出さない */
+  if (!P.line.addFriendUrl || P.gate.mode === 'none') $('hazLine').style.display = 'none';
 
   $('backBtn').onclick    = goBack;
   $('startBtn').onclick   = () => { state.step = 0; track('start', {}); renderStep(); };
