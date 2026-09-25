@@ -40,6 +40,33 @@ simulator/
   | 3問目 お部屋の様子 | 足の踏み場がない |
   | 7問目 あわせてご希望のもの | においや汚れの除去（特殊清掃）／ 害虫の駆除 |
 
+## 自社サイトとトンマナを合わせる
+
+`pricing.js` の `theme` だけを変更します。`index.html` の CSS は触りません。
+
+```js
+theme: {
+  colors: {
+    bg:'#F6F4F0', card:'#FFFFFF', ink:'#22303C', muted:'#67767F',
+    line:'#E3DED5', lineStrong:'#CFC8BC',
+    accent:'#2F4B5E',      // 主要ボタン・選択中の枠
+    accentDeep:'#223847',  // 見積書のヘッダー
+    accentSoft:'#EAF0F3',  // 選択中の背景・CTAの帯
+  },
+  fontUrl:   'https://fonts.googleapis.com/css2?family=...&display=swap',
+  fontFamily:'"フォント名"',
+  radius:'14px', radiusLg:'20px',
+  logo: { src:'', alt:'', height:34, barHeight:22, animate:true },
+}
+```
+
+- `logo.src` は**画像URLでも、インラインSVGの文字列でも**受け付けます。
+  SVGを直接入れると、色をCSS変数に合わせたり、読み込み待ちをなくせます。
+- `logo.animate: true` で、最初の画面のロゴがフェードインし、
+  下の罫線が左右に伸びます。`prefers-reduced-motion` を尊重します。
+- 上振れ・下振れのタグ（▲▼）の色だけはテーマから独立させています。
+  「注意」「お得」を表す意味の色なので、ブランド色と混ぜると意味が読み取れなくなるためです。
+
 ## 設置の手順
 
 1. `pricing.js` の `company` を自社の情報に差し替える

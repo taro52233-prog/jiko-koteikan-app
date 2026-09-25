@@ -24,6 +24,41 @@ window.PRICING = {
     quoteValidDays: 30,                      // ← お見積書の有効期限（日数）
   },
 
+  /* ---------- 1-b. 見た目（サイトに合わせる箇所） ---------------
+     ★ 自社サイトとトンマナを合わせるときは、ここだけ変更します。
+       index.html の CSS は触る必要がありません。
+     -------------------------------------------------------------- */
+  theme: {
+    colors: {
+      bg:         '#F6F4F0',  // ページの地の色
+      card:       '#FFFFFF',  // カードの地の色
+      ink:        '#22303C',  // 本文の文字色
+      muted:      '#67767F',  // 補足の文字色
+      line:       '#E3DED5',  // 罫線
+      lineStrong: '#CFC8BC',  // 濃い罫線
+      accent:     '#2F4B5E',  // 主要ボタン・選択中の枠
+      accentDeep: '#223847',  // 見積書のヘッダー
+      accentSoft: '#EAF0F3',  // 選択中の背景・CTAの帯
+    },
+    // Google Fonts を使う場合。空のままなら端末標準のゴシックになります。
+    // 例) fontUrl: 'https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap'
+    //     fontFamily: '"Zen Kaku Gothic New"'
+    fontUrl:    '',
+    fontFamily: '',
+    radius:     '14px',   // 角の丸み（ボタン・小さいカード）
+    radiusLg:   '20px',   // 角の丸み（大きいカード）
+
+    // ロゴ。src を入れると、ヘッダーと最初の画面に表示されます。
+    // 画像URLのほか、インラインSVGの文字列（'<svg ...>...</svg>'）も入ります。
+    logo: {
+      src:    '',
+      alt:    '',
+      height: 34,          // 最初の画面でのロゴの高さ(px)
+      barHeight: 22,       // ヘッダーでのロゴの高さ(px)
+      animate: true,       // 最初の画面でロゴをアニメーションさせるか
+    },
+  },
+
   /* ---------- 2. LINE連携 ------------------------------------- */
   line: {
     // LINE公式アカウントの友だち追加URL（LINE Official Account Manager で発行）

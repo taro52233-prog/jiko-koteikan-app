@@ -113,6 +113,22 @@
   .btn[disabled]{opacity:.4;cursor:default}
   .btn-sm{min-height:48px;font-size:.97rem}
 
+  /* ---- ロゴ ---- */
+  .brand img,.brand svg{height:var(--logo-bar-h,22px);width:auto;max-width:190px;display:block}
+  .brand-mark{display:flex;flex-direction:column;align-items:center;gap:15px;margin-bottom:24px}
+  .brand-mark .mark{display:flex;align-items:center;justify-content:center;min-height:var(--logo-h,34px)}
+  .brand-mark .mark img,.brand-mark .mark svg{height:var(--logo-h,34px);width:auto;max-width:260px;display:block}
+  .brand-mark .mark .wordmark{font-size:1.18rem;font-weight:800;letter-spacing:.06em;color:var(--accent-deep);
+    text-align:center;line-height:1.4}
+  .brand-mark .rule{width:56px;height:2px;background:var(--accent);border-radius:2px;opacity:.9}
+  .anim .brand-mark .mark > *{animation:logoIn .72s cubic-bezier(.2,.75,.3,1) both}
+  .anim .brand-mark .rule{animation:ruleIn .78s .34s cubic-bezier(.2,.75,.3,1) both}
+  @keyframes logoIn{from{opacity:0;transform:translateY(12px) scale(.955)}to{opacity:1;transform:none}}
+  @keyframes ruleIn{from{width:0;opacity:0}to{width:56px;opacity:.9}}
+  @media (prefers-reduced-motion:reduce){
+    .anim .brand-mark .mark > *,.anim .brand-mark .rule{animation:none}
+  }
+
   /* ---- 導入画面 ---- */
   .promises{list-style:none;display:flex;flex-direction:column;gap:12px;margin:22px 0}
   .promises li{display:flex;gap:11px;align-items:flex-start;font-size:.97rem;line-height:1.6}
@@ -267,6 +283,7 @@
   <section class="screen active" id="scr-intro" style="padding-top:28px">
     <div id="resumeSlot"></div>
     <div class="card">
+      <div class="brand-mark" id="brandMark"><div class="mark"></div><div class="rule"></div></div>
       <h1>おおよその作業規模と<br>お見積りの目安がわかります</h1>
       <p class="lead" style="margin-top:12px">8つの質問にお答えください。所要時間はおよそ60秒です。</p>
       <ul class="promises">
@@ -1120,8 +1137,51 @@ function toast(msg){
 /* ============================================================
    起動
    ============================================================ */
+/* pricing.js の theme を CSS 変数として流し込む */
+function applyTheme(){
+  const t = P.theme || {};
+  const map = {
+    bg:'--bg', card:'--card', ink:'--ink', muted:'--muted', line:'--line',
+    lineStrong:'--line-strong', accent:'--accent', accentDeep:'--accent-deep',
+    accentSoft:'--accent-soft',
+  };
+  const root = document.documentElement.style;
+  Object.keys(map).forEach(k => { if (t.colors && t.colors[k]) root.setProperty(map[k], t.colors[k]); });
+  if (t.radius)   root.setProperty('--radius', t.radius);
+  if (t.radiusLg) root.setProperty('--radius-lg', t.radiusLg);
+
+  if (t.fontUrl) {
+    const l = document.createElement('link');
+    l.rel = 'stylesheet'; l.href = t.fontUrl;
+    document.head.appendChild(l);
+  }
+  if (t.fontFamily) {
+    document.body.style.fontFamily = t.fontFamily +
+      ', -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic UI", "Meiryo", sans-serif';
+  }
+
+  const lg = t.logo || {};
+  if (lg.height)    root.setProperty('--logo-h', lg.height + 'px');
+  if (lg.barHeight) root.setProperty('--logo-bar-h', lg.barHeight + 'px');
+
+  /* ロゴ。画像URLでも、インラインSVGの文字列でも受け付ける */
+  const asMarkup = (src, cls) =>
+    /^\s*<svg/i.test(src) ? src
+      : '<img class="' + cls + '" src="' + src + '" alt="' + (lg.alt || CO.name) + '">';
+
+  const mark = document.querySelector('#brandMark .mark');
+  if (lg.src) {
+    mark.innerHTML = asMarkup(lg.src, 'intro-logo');
+    $('brandName').innerHTML = asMarkup(lg.src, 'bar-logo');
+  } else {
+    mark.innerHTML = '<div class="wordmark">' + CO.name + '</div>';
+    $('brandName').textContent = CO.name;
+  }
+  if (lg.animate !== false) document.body.classList.add('anim');
+}
+
 function boot(){
-  $('brandName').textContent = CO.name;
+  applyTheme();
   $('hazHours').textContent  = CO.telHours;
   $('hazLicense').textContent = CO.license;
   $('resLicense').textContent = CO.license;
