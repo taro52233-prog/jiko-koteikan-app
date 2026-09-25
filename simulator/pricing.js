@@ -16,7 +16,7 @@ window.PRICING = {
 
   /* ---------- 1. 会社情報・表示設定 ---------------------------- */
   company: {
-    name: '〇〇遺品整理サービス',            // ← 社名
+    name: 'おかたづけ本舗 you',              // ← 社名（正式表記をご確認ください）
     tel: '0120-000-000',                     // ← 電話番号
     telHours: '受付 8:00〜20:00（年中無休）',
     license: '一般廃棄物収集運搬業許可 第000号 ／ 古物商許可 第000000000000号', // ← 許可番号
@@ -30,29 +30,30 @@ window.PRICING = {
      -------------------------------------------------------------- */
   theme: {
     colors: {
-      bg:         '#F6F4F0',  // ページの地の色
+      bg:         '#EFFAFB',  // ページの地の色（サイトの淡い水色セクション）
       card:       '#FFFFFF',  // カードの地の色
-      ink:        '#22303C',  // 本文の文字色
-      muted:      '#67767F',  // 補足の文字色
-      line:       '#E3DED5',  // 罫線
-      lineStrong: '#CFC8BC',  // 濃い罫線
-      accent:     '#2F4B5E',  // 主要ボタン・選択中の枠
-      accentDeep: '#223847',  // 見積書のヘッダー
-      accentSoft: '#EAF0F3',  // 選択中の背景・CTAの帯
+      ink:        '#12272C',  // 本文の文字色
+      muted:      '#5E7C83',  // 補足の文字色
+      line:       '#DCEAEC',  // 罫線
+      lineStrong: '#B1D4D2',  // 濃い罫線
+      accent:     '#0B5160',  // 主要ボタン・選択中の枠（サイトのメインカラー）
+      accentDeep: '#103138',  // 見積書のヘッダー（サイトのフッター色）
+      accentSoft: '#E2F3F5',  // 選択中の背景・CTAの帯
     },
     // Google Fonts を使う場合。空のままなら端末標準のゴシックになります。
     // 例) fontUrl: 'https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap'
     //     fontFamily: '"Zen Kaku Gothic New"'
-    fontUrl:    '',
-    fontFamily: '',
-    radius:     '14px',   // 角の丸み（ボタン・小さいカード）
-    radiusLg:   '20px',   // 角の丸み（大きいカード）
+    fontUrl:    'https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&display=swap',
+    fontFamily: '"Noto Sans JP"',
+    radius:     '16px',   // 角の丸み（小さいカード・選択肢）
+    radiusLg:   '22px',   // 角の丸み（大きいカード）
+    radiusBtn:  '999px',  // ボタンの角丸。サイトに合わせて完全な丸み（ピル形）
 
     // ロゴ。src を入れると、ヘッダーと最初の画面に表示されます。
     // 画像URLのほか、インラインSVGの文字列（'<svg ...>...</svg>'）も入ります。
     logo: {
       src:    '',
-      alt:    '',
+      alt:    'おかたづけ本舗 you',
       height: 34,          // 最初の画面でのロゴの高さ(px)
       barHeight: 22,       // ヘッダーでのロゴの高さ(px)
       animate: true,       // 最初の画面でロゴをアニメーションさせるか
