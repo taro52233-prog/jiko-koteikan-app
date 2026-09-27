@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <base target="_top">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>チャレンジタッチ</title>
+  <style>
+    :root {
+      --bg: #F4F7FF; --card: #FFFFFF; --text: #1E293B; --muted: #64748B; --border: #E2E8F0;
+      --primary: #2563EB; --primary-soft: #DBEAFE;
+      --ok: #059669; --ok-soft: #D1FAE5; --ng: #DC2626; --ng-soft: #FEE2E2;
+      --warn: #B45309; --warn-soft: #FEF3C7; --track: #E2E8F0; --radius: 18px;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0F172A; --card: #1E293B; --text: #F1F5F9; --muted: #94A3B8; --border: #334155;
+        --primary: #60A5FA; --primary-soft: #1E3A8A;
+        --ok: #34D399; --ok-soft: #064E3B; --ng: #F87171; --ng-soft: #7F1D1D;
+        --warn: #FBBF24; --warn-soft: #78350F; --track: #334155;
+      }
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, "Hiragino Sans", "Yu Gothic UI", "Meiryo", sans-serif; background: var(--bg); color: var(--text); padding: 16px; }
+    .wrap { max-width: 640px; margin: 0 auto; }
+    h1 { font-size: 1.1rem; margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px; margin-bottom: 14px; }
+    .muted { color: var(--muted); font-size: .82rem; }
+    .kid-name { font-size: 1.2rem; font-weight: 800; }
+    .verdict { border-radius: var(--radius); padding: 18px; text-align: center; margin: 12px 0; }
+    .verdict.ok { background: var(--ok-soft); color: var(--ok); }
+    .verdict.ng { background: var(--ng-soft); color: var(--ng); }
+    .verdict .big { font-size: 1.9rem; font-weight: 900; }
+    .verdict .why { font-size: 1rem; font-weight: 700; margin-top: 4px; }
+    .kid .verdict .big { font-size: clamp(1.8rem, 9vw, 2.6rem); white-space: nowrap; }
+    .kid .verdict .why { font-size: 1.1rem; }
+    .count { font-size: 2.2rem; font-weight: 900; }
+    .count small { font-size: 1rem; color: var(--muted); font-weight: 700; }
+    .bar { position: relative; height: 16px; background: var(--track); border-radius: 99px; overflow: hidden; margin: 8px 0 4px; }
+    .bar .fill { height: 100%; background: var(--primary); border-radius: 99px; transition: width .6s; }
+    .bar .pace { position: absolute; top: -2px; bottom: -2px; width: 3px; background: var(--warn); }
+    .legend { display: flex; justify-content: space-between; font-size: .75rem; color: var(--muted); }
+    .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 12px; }
+    .stat { background: var(--bg); border-radius: 12px; padding: 10px 6px; text-align: center; }
+    .stat b { display: block; font-size: 1.25rem; }
+    .stat span { font-size: .72rem; color: var(--muted); }
+    .cal { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-top: 12px; }
+    .cal div { aspect-ratio: 1; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: .78rem; background: var(--bg); color: var(--muted); }
+    .cal .head { background: none; font-weight: 700; aspect-ratio: auto; padding-bottom: 2px; }
+    .cal .studied { background: var(--primary); color: #fff; font-weight: 700; }
+    .cal .today { outline: 2.5px solid var(--warn); }
+    .cal .empty { background: none; }
+    .badge { display: inline-block; font-size: .75rem; font-weight: 700; padding: 3px 10px; border-radius: 99px; }
+    .badge.ok { background: var(--ok-soft); color: var(--ok); }
+    .badge.ng { background: var(--ng-soft); color: var(--ng); }
+    .badge.warn { background: var(--warn-soft); color: var(--warn); }
+    button, input { font: inherit; }
+    button { border: 1px solid var(--border); background: var(--card); color: var(--text); border-radius: 10px; padding: 8px 12px; cursor: pointer; font-weight: 700; min-height: 40px; }
+    button.primary { background: var(--primary); border-color: var(--primary); color: #fff; }
+    button:disabled { opacity: .5; }
+    input { border: 1px solid var(--border); background: var(--bg); color: var(--text); border-radius: 10px; padding: 8px 10px; width: 5.5em; min-height: 40px; }
+    .row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; }
+    .admin { border-top: 1px dashed var(--border); margin-top: 14px; padding-top: 10px; }
+    .monthnav { display: flex; align-items: center; gap: 6px; }
+    .link { font-size: .75rem; word-break: break-all; color: var(--primary); }
+    .toast { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); background: #1E293B; color: #fff; padding: 10px 18px; border-radius: 99px; font-size: .85rem; }
+    .loading { text-align: center; padding: 40px; color: var(--muted); }
+  </style>
+</head>
+<body>
+<div class="wrap" id="app"><div class="loading">よみこみ中…</div></div>
+
+<script>
+  const CHILD = <?= childParam ?>; // Apps Script が JS 文字列としてエスケープして出力する
+  const IS_KID = !!CHILD;
+  let data = null;
+  let month = null;
+  let pin = '';
+  try { pin = sessionStorage.getItem('ct-pin') || ''; } catch (e) { /* 使えない環境 */ }
+
+  function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+  function toast(msg) {
+    document.querySelectorAll('.toast').forEach(e => e.remove());
+    const el = document.createElement('div'); el.className = 'toast'; el.textContent = msg;
+    document.body.appendChild(el); setTimeout(() => el.remove(), 2600);
+  }
+  function monthLabel(m) { const [y, mm] = m.split('-'); return y + '年' + Number(mm) + '月'; }
+
+  function load(m) {
+    google.script.run.withSuccessHandler(d => { data = d; month = d.month; render(); })
+      .withFailureHandler(err => { document.getElementById('app').innerHTML = '<div class="card">エラー: ' + esc(err.message) + '</div>'; })
+      .getDashboard(m || null);
+  }
+
+  function act(action, payload) {
+    if (!pin) {
+      pin = prompt('親用PINを入力してください') || '';
+      if (!pin) return;
+    }
+    document.querySelectorAll('button').forEach(b => b.disabled = true);
+    google.script.run
+      .withSuccessHandler(d => {
+        try { sessionStorage.setItem('ct-pin', pin); } catch (e) { /* 使えない環境 */ }
+        data = d; month = d.month; render(); toast('保存しました');
+      })
+      .withFailureHandler(err => {
+        if (/PIN/.test(err.message)) { pin = ''; try { sessionStorage.removeItem('ct-pin'); } catch (e) { } }
+        toast(err.message); render();
+      })
+      .parentAction(pin, action, Object.assign({ month }, payload || {}));
+  }
+
+  function calendar(c) {
+    const [y, m] = c.month.split('-').map(Number);
+    const first = new Date(y, m - 1, 1).getDay();
+    const studied = new Set(c.studyDays.map(d => Number(d.slice(8, 10))));
+    const todayDay = data.today.slice(0, 7) === c.month ? Number(data.today.slice(8, 10)) : -1;
+    let h = ['日', '月', '火', '水', '木', '金', '土'].map(w => '<div class="head">' + w + '</div>').join('');
+    for (let i = 0; i < first; i++) h += '<div class="empty"></div>';
+    for (let d = 1; d <= c.daysInMonth; d++) {
+      const cls = (studied.has(d) ? 'studied ' : '') + (d === todayDay ? 'today' : '');
+      h += '<div class="' + cls + '">' + (studied.has(d) ? '★' : d) + '</div>';
+    }
+    return '<div class="cal">' + h + '</div>';
+  }
+
+  function childCard(c) {
+    const isCurrent = c.month === data.today.slice(0, 7);
+    const pct = c.total ? Math.min(100, c.done / c.total * 100) : 0;
+    const pacePct = c.total ? Math.min(100, c.expected / c.total * 100) : 0;
+    let h = '<div class="card ' + (IS_KID ? 'kid' : '') + '">';
+    h += '<div class="row" style="margin-top:0;justify-content:space-between"><span class="kid-name">' + esc(c.emoji + ' ' + c.name) + '</span>';
+    if (c.prevMonth.total > 0) {
+      h += c.prevMonth.monthDone ? '<span class="badge ok">先月 ぜんぶクリア</span>'
+        : '<span class="badge ng">先月 のこり' + c.prevMonth.remaining + '</span>';
+    }
+    h += '</div>';
+
+    if (isCurrent) {
+      h += '<div class="verdict ' + (c.gameOk ? 'ok' : 'ng') + '"><div class="big">' + (c.gameOk ? '🎮 ゲームOK' : '✋ ゲームはまだ') + '</div>' +
+        '<div class="why">' + esc(c.reason) + '</div></div>';
+    } else {
+      h += '<div class="row"><span class="badge ' + (c.monthDone ? 'ok' : 'warn') + '">' + esc(c.reason) + '</span></div>';
+    }
+
+    if (c.total > 0) {
+      h += '<div class="count" style="margin-top:8px">' + c.done + '<small> / ' + c.total + ' レッスン</small></div>';
+      h += '<div class="bar"><div class="fill" style="width:' + pct + '%"></div>' +
+        (isCurrent && !c.monthDone ? '<div class="pace" style="left:calc(' + pacePct + '% - 1px)"></div>' : '') + '</div>';
+      if (isCurrent && !c.monthDone) h += '<div class="legend"><span>今日までの目標: ' + c.expected + '</span><span>オレンジの線をこえていればOK</span></div>';
+      h += '<div class="stats">' +
+        '<div class="stat"><b>' + c.remaining + '</b><span>のこりレッスン</span></div>' +
+        '<div class="stat"><b>' + (isCurrent ? c.daysLeft : '-') + '</b><span>のこり日数</span></div>' +
+        '<div class="stat"><b>' + (isCurrent && c.remaining ? c.perDay : '-') + '</b><span>1日あたり</span></div></div>';
+    } else {
+      h += '<p class="muted" style="margin-top:8px">今月のレッスン数がまだ設定されていません（おうちの人が設定します）</p>';
+    }
+    h += calendar(c);
+    h += '<p class="muted" style="margin-top:6px">★ = チャレンジタッチをやった日（' + c.studyDays.length + '日）</p>';
+
+    if (!IS_KID) {
+      h += '<div class="admin"><div class="muted">親の操作（PINが必要）</div>' +
+        '<div class="row">今月のレッスン数 <input type="number" min="0" id="total-' + c.childId + '" value="' + c.total + '">' +
+        '<button onclick="act(\'setTotal\',{childId:\'' + c.childId + '\',total:document.getElementById(\'total-' + c.childId + '\').value})">設定</button></div>' +
+        '<div class="row">完了数 <button onclick="act(\'adjust\',{childId:\'' + c.childId + '\',delta:-1})">−1</button>' +
+        '<button onclick="act(\'adjust\',{childId:\'' + c.childId + '\',delta:1})">＋1</button>' +
+        '<input type="number" min="0" id="done-' + c.childId + '" value="' + c.done + '">' +
+        '<button onclick="act(\'setDone\',{childId:\'' + c.childId + '\',value:document.getElementById(\'done-' + c.childId + '\').value})">この数に合わせる</button></div>' +
+        (isCurrent ? '<div class="row"><button onclick="act(\'markDay\',{childId:\'' + c.childId + '\'})">今日やった日として登録</button></div>' : '') +
+        (data.appUrl ? '<div class="row"><span class="muted">子ども用リンク:</span> <a class="link" href="' + esc(data.appUrl + '?child=' + c.childId) + '">' + esc(data.appUrl + '?child=' + c.childId) + '</a></div>' : '') +
+        '</div>';
+    }
+    return h + '</div>';
+  }
+
+  function render() {
+    const kids = IS_KID ? data.children.filter(c => c.childId === CHILD) : data.children;
+    let h = '<h1><span>📘 チャレンジタッチ ' + monthLabel(month) + '</span>';
+    if (!IS_KID) {
+      h += '<span class="monthnav"><button onclick="load(shift(-1))">◀</button><button onclick="load(shift(1))">▶</button></span>';
+    }
+    h += '</h1>';
+    if (!kids.length) h += '<div class="card">このリンクの子どもが見つかりません</div>';
+    h += kids.map(childCard).join('');
+    if (!IS_KID) {
+      const rule = { pace: '月末に全部終わるペースならOK', daily: '今日やったらOK', strict: '今日やって、かつペース内ならOK' }[data.ruleMode] || data.ruleMode;
+      h += '<div class="card"><div class="muted">ルール: ' + esc(rule) + '</div>' +
+        (data.unknownMails ? '<p class="muted" style="margin-top:6px">⚠️ 誰のものか判別できなかった通知メールが ' + data.unknownMails + ' 通あります（CONFIG.children の keywords を確認）</p>' : '') +
+        '<div class="row"><button class="primary" onclick="act(\'sync\')">メールを今すぐ取り込む</button></div></div>';
+    }
+    document.getElementById('app').innerHTML = h;
+  }
+
+  function shift(d) {
+    const [y, m] = month.split('-').map(Number);
+    const x = new Date(y, m - 1 + d, 1);
+    return x.getFullYear() + '-' + String(x.getMonth() + 1).padStart(2, '0');
+  }
+
+  load();
+</script>
+</body>
+</html>

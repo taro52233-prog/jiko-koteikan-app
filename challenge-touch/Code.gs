@@ -1,0 +1,326 @@
+/**
+ * チャレンジタッチ 月間レッスン管理（Google Apps Script）
+ *
+ * - Gmail に届くチャレンジタッチの通知メールを定期的に読み取り、子どもごとに記録する
+ * - 「今月のレッスンを全部やる」ためのペースを計算し、今日ゲームしてよいかを判定する
+ * - Webアプリとして公開し、子ども用（閲覧のみ）と親用（PINで操作）の画面を出す
+ *
+ * セットアップ手順は README.md を参照。
+ */
+
+// ===== 設定（ここを家庭に合わせて書き換える） =====
+const CONFIG = {
+  children: [
+    // keywords: 通知メール本文・件名に含まれる、その子を判別できる文字列（名前など）
+    { id: 'child1', name: 'たろう', emoji: '🦖', keywords: ['たろう'] },
+    { id: 'child2', name: 'はなこ', emoji: '🐰', keywords: ['はなこ'] },
+  ],
+  // 通知メールを探す Gmail 検索クエリ。実際のメールの差出人・件名に合わせて調整する
+  gmailQuery: 'チャレンジタッチ newer_than:45d',
+  // メールから完了レッスン数を読み取る正規表現（文字列）。
+  //   キャプチャグループあり → 最初の一致の数値を採用（例: '(\\d+)\\s*レッスン'）
+  //   キャプチャグループなし → 一致した回数をレッスン数とする（例: '✓'）
+  //   null → メールは「学習した日」の記録だけにして、レッスン数は親が手入力する
+  lessonPattern: null,
+  // 月のレッスン数が未設定のときの初期値（0 = 毎月親が入力する）
+  defaultMonthlyLessons: 0,
+  // ゲーム判定ルール
+  //   'pace'   : 月末に全レッスン終わるペースに乗っていればOK（毎日やらなくてもいい）【おすすめ】
+  //   'daily'  : 今日やっていればOK（従来ルール）。月の進捗は表示のみ
+  //   'strict' : 今日やっていて、かつペースにも乗っていればOK
+  ruleMode: 'pace',
+  // ペース判定の猶予（レッスン数）。1 なら「1レッスン遅れまではOK」
+  paceGraceLessons: 0,
+};
+
+const TZ = 'Asia/Tokyo';
+const REC_HEADERS = ['id', 'date', 'childId', 'lessons', 'source', 'note', 'createdAt'];
+const MONTH_HEADERS = ['month', 'childId', 'total'];
+
+// ===== セットアップ・トリガー =====
+
+/** 初回に1回だけ手動実行する。スプレッドシート作成と定期実行トリガー登録を行う。 */
+function setup() {
+  const props = PropertiesService.getScriptProperties();
+  if (!props.getProperty('SHEET_ID')) {
+    const ss = SpreadsheetApp.create('チャレンジタッチ記録');
+    props.setProperty('SHEET_ID', ss.getId());
+  }
+  if (!props.getProperty('PARENT_PIN')) props.setProperty('PARENT_PIN', '0000');
+  sheet_('records', REC_HEADERS);
+  sheet_('months', MONTH_HEADERS);
+  ScriptApp.getProjectTriggers()
+    .filter(t => t.getHandlerFunction() === 'syncFromGmail')
+    .forEach(t => ScriptApp.deleteTrigger(t));
+  ScriptApp.newTrigger('syncFromGmail').timeBased().everyMinutes(30).create();
+  syncFromGmail();
+  Logger.log('セットアップ完了。スプレッドシート: ' + ss_().getUrl());
+  Logger.log('親PINの初期値は 0000 です。プロジェクトの設定 > スクリプト プロパティ の PARENT_PIN で変更してください。');
+}
+
+/** 通知メールの中身を確認するためのデバッグ用。実行ログに最新メールを表示する。 */
+function debugLatestMails() {
+  const threads = GmailApp.search(CONFIG.gmailQuery, 0, 5);
+  if (!threads.length) { Logger.log('該当メールなし。CONFIG.gmailQuery を見直してください: ' + CONFIG.gmailQuery); return; }
+  threads.forEach(th => th.getMessages().slice(-1).forEach(m => {
+    const parsed = parseMail_(m.getSubject(), m.getPlainBody(), CONFIG);
+    Logger.log('==== ' + m.getDate() + ' / ' + m.getFrom() + '\n件名: ' + m.getSubject() +
+      '\n判定: 子ども=' + JSON.stringify(parsed.childIds) + ' レッスン数=' + parsed.lessons +
+      '\n本文(先頭800字):\n' + m.getPlainBody().slice(0, 800));
+  }));
+}
+
+// ===== Gmail 取り込み =====
+
+function syncFromGmail() {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    const seen = new Set(readRecords_().map(r => r.id));
+    const rows = [];
+    GmailApp.search(CONFIG.gmailQuery, 0, 100).forEach(th => th.getMessages().forEach(m => {
+      const msgId = m.getId();
+      const date = Utilities.formatDate(m.getDate(), TZ, 'yyyy-MM-dd');
+      const parsed = parseMail_(m.getSubject(), m.getPlainBody(), CONFIG);
+      const childIds = parsed.childIds.length ? parsed.childIds : ['unknown'];
+      childIds.forEach(childId => {
+        const id = 'mail:' + msgId + ':' + childId;
+        if (seen.has(id)) return;
+        seen.add(id);
+        rows.push([id, "'" + date, childId, parsed.lessons, 'mail', m.getSubject().slice(0, 80), new Date()]);
+      });
+    }));
+    if (rows.length) {
+      const sh = sheet_('records', REC_HEADERS);
+      sh.getRange(sh.getLastRow() + 1, 1, rows.length, REC_HEADERS.length).setValues(rows);
+    }
+    return rows.length;
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+// ===== Webアプリ =====
+
+function doGet(e) {
+  const t = HtmlService.createTemplateFromFile('Index');
+  t.childParam = (e && e.parameter && e.parameter.child) || '';
+  return t.evaluate()
+    .setTitle('チャレンジタッチ')
+    .addMetaTag('viewport', 'width=device-width, initial-scale=1');
+}
+
+/** 画面表示用データ（誰でも取得可。読み取りのみ） */
+function getDashboard(month) {
+  const today = Utilities.formatDate(new Date(), TZ, 'yyyy-MM-dd');
+  return buildDashboard_(readRecords_(), readTotals_(), month || today.slice(0, 7), today, CONFIG,
+    ScriptApp.getService().getUrl());
+}
+
+/** 親の操作（PIN必須） */
+function parentAction(pin, action, p) {
+  const expected = PropertiesService.getScriptProperties().getProperty('PARENT_PIN') || '0000';
+  if (String(pin) !== expected) throw new Error('PINがちがいます');
+  const lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    const today = Utilities.formatDate(new Date(), TZ, 'yyyy-MM-dd');
+    if (action === 'sync') {
+      lock.releaseLock();
+      syncFromGmail();
+    } else if (action === 'setTotal') {
+      setTotal_(p.month, p.childId, Math.max(0, parseInt(p.total, 10) || 0));
+    } else if (action === 'adjust') {
+      addRecord_(p.date || today, p.childId, parseInt(p.delta, 10) || 0, 'manual', '手動調整');
+    } else if (action === 'setDone') {
+      const current = sumLessons_(readRecords_(), p.childId, p.month);
+      const delta = (parseInt(p.value, 10) || 0) - current;
+      const date = p.month === today.slice(0, 7) ? today : lastDayOfMonth_(p.month);
+      if (delta) addRecord_(date, p.childId, delta, 'manual', '完了数を' + p.value + 'に合わせる');
+    } else if (action === 'markDay') {
+      addRecord_(p.date || today, p.childId, 0, 'day', '学習日を手動登録');
+    } else if (action === 'checkPin') {
+      // PIN確認のみ
+    } else {
+      throw new Error('不明な操作: ' + action);
+    }
+  } finally {
+    try { lock.releaseLock(); } catch (err) { /* 解放済み */ }
+  }
+  return getDashboard(p && p.month);
+}
+
+// ===== スプレッドシート入出力 =====
+
+function ss_() {
+  const id = PropertiesService.getScriptProperties().getProperty('SHEET_ID');
+  if (!id) throw new Error('未セットアップです。先に setup() を実行してください');
+  return SpreadsheetApp.openById(id);
+}
+
+function sheet_(name, headers) {
+  const ss = ss_();
+  let sh = ss.getSheetByName(name);
+  if (!sh) {
+    sh = ss.insertSheet(name);
+    sh.appendRow(headers);
+    sh.setFrozenRows(1);
+  }
+  return sh;
+}
+
+function readRecords_() {
+  const values = sheet_('records', REC_HEADERS).getDataRange().getValues().slice(1);
+  return values.filter(r => r[0]).map(r => ({
+    id: String(r[0]),
+    date: cellToStr_(r[1], 'yyyy-MM-dd'),
+    childId: String(r[2]),
+    lessons: Number(r[3]) || 0,
+    source: String(r[4]),
+    note: String(r[5] || ''),
+  }));
+}
+
+function readTotals_() {
+  const values = sheet_('months', MONTH_HEADERS).getDataRange().getValues().slice(1);
+  const totals = {};
+  values.filter(r => r[0]).forEach(r => { totals[cellToStr_(r[0], 'yyyy-MM') + '|' + r[1]] = Number(r[2]) || 0; });
+  return totals;
+}
+
+function setTotal_(month, childId, total) {
+  const sh = sheet_('months', MONTH_HEADERS);
+  const values = sh.getDataRange().getValues();
+  for (let i = 1; i < values.length; i++) {
+    if (cellToStr_(values[i][0], 'yyyy-MM') === month && String(values[i][1]) === childId) {
+      sh.getRange(i + 1, 3).setValue(total);
+      return;
+    }
+  }
+  sh.appendRow(["'" + month, childId, total]);
+}
+
+function addRecord_(date, childId, lessons, source, note) {
+  const id = source + ':' + Utilities.getUuid();
+  sheet_('records', REC_HEADERS).appendRow([id, "'" + date, childId, lessons, source, note, new Date()]);
+}
+
+function cellToStr_(v, fmt) {
+  if (v instanceof Date) return Utilities.formatDate(v, TZ, fmt);
+  return String(v).replace(/^'/, '');
+}
+
+// ===== 判定ロジック（純粋関数。Sheets/Gmail に依存しない） =====
+
+function parseMail_(subject, body, cfg) {
+  const text = String(subject || '') + '\n' + String(body || '');
+  const childIds = cfg.children
+    .filter(c => (c.keywords || []).some(k => k && text.indexOf(k) >= 0))
+    .map(c => c.id);
+  let lessons = 0;
+  if (cfg.lessonPattern) {
+    const matches = Array.from(text.matchAll(new RegExp(cfg.lessonPattern, 'g')));
+    if (matches.length) lessons = matches[0].length > 1 ? (parseInt(matches[0][1], 10) || 0) : matches.length;
+  }
+  return { childIds, lessons };
+}
+
+function daysInMonth_(month) {
+  const [y, m] = month.split('-').map(Number);
+  return new Date(y, m, 0).getDate();
+}
+
+function lastDayOfMonth_(month) {
+  return month + '-' + String(daysInMonth_(month)).padStart(2, '0');
+}
+
+function shiftMonth_(month, delta) {
+  const [y, m] = month.split('-').map(Number);
+  const d = new Date(y, m - 1 + delta, 1);
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+}
+
+function sumLessons_(records, childId, month) {
+  return records
+    .filter(r => r.childId === childId && r.date.slice(0, 7) === month)
+    .reduce((s, r) => s + r.lessons, 0);
+}
+
+/**
+ * 1人・1か月分の状況を計算する。
+ * ペース判定: 「今日までに終わっているべき数」= ceil(総数 × 経過日数 / 月の日数) - 猶予
+ */
+function summarize_(child, month, total, records, today, cfg) {
+  const mine = records.filter(r => r.childId === child.id && r.date.slice(0, 7) === month);
+  const done = Math.max(0, mine.reduce((s, r) => s + r.lessons, 0));
+  const studyDays = Array.from(new Set(
+    mine.filter(r => r.source === 'mail' || r.source === 'day').map(r => r.date))).sort();
+
+  const thisMonth = today.slice(0, 7);
+  const dim = daysInMonth_(month);
+  const isCurrent = month === thisMonth;
+  const elapsed = isCurrent ? Number(today.slice(8, 10)) : (month < thisMonth ? dim : 0);
+  const expected = total > 0 ? Math.max(0, Math.ceil(total * elapsed / dim) - (cfg.paceGraceLessons || 0)) : 0;
+
+  const remaining = Math.max(0, total - done);
+  const daysLeft = isCurrent ? dim - elapsed + 1 : 0; // 今日を含む
+  const perDay = daysLeft > 0 ? Math.ceil(remaining / daysLeft) : remaining;
+  const studiedToday = isCurrent && studyDays.indexOf(today) >= 0;
+  const monthDone = total > 0 && done >= total;
+  const behind = Math.max(0, expected - done);
+  const onPace = total > 0 && behind === 0;
+
+  let gameOk;
+  let reason;
+  if (monthDone) {
+    gameOk = true;
+    reason = '今月のレッスン、ぜんぶクリア！🎉';
+  } else if (total <= 0) {
+    // 月の総数が未設定なら従来の「今日やったか」だけで判定する
+    gameOk = studiedToday;
+    reason = studiedToday ? '今日もがんばったね！' : '今日のチャレンジタッチをやったらゲームOK';
+  } else if (cfg.ruleMode === 'daily') {
+    gameOk = studiedToday;
+    reason = studiedToday ? '今日もがんばったね！' : '今日のチャレンジタッチをやったらゲームOK';
+  } else if (cfg.ruleMode === 'strict') {
+    gameOk = studiedToday && onPace;
+    reason = gameOk ? '今日もペースもばっちり！'
+      : !studiedToday ? '今日のチャレンジタッチをやったらゲームOK'
+        : 'あと ' + behind + ' レッスンでペースにもどるよ';
+  } else {
+    gameOk = onPace;
+    reason = onPace
+      ? (studiedToday ? '今日もがんばったね！ペースばっちり' : 'ペースばっちり！今日はお休みしてもOK')
+      : 'あと ' + behind + ' レッスンやったらゲームOK';
+  }
+  if (!isCurrent) {
+    reason = monthDone ? 'ぜんぶクリア！' : (month < thisMonth ? remaining + ' レッスンのこり' : 'まだ始まっていません');
+  }
+
+  return {
+    childId: child.id, name: child.name, emoji: child.emoji || '⭐',
+    month, total, done, remaining, expected, behind, onPace, monthDone,
+    daysInMonth: dim, elapsed, daysLeft, perDay, studiedToday, studyDays,
+    gameOk: isCurrent ? gameOk : null, reason,
+  };
+}
+
+function buildDashboard_(records, totals, month, today, cfg, appUrl) {
+  const totalFor = (m, id) => {
+    const t = totals[m + '|' + id];
+    return t === undefined ? (cfg.defaultMonthlyLessons || 0) : t;
+  };
+  const prev = shiftMonth_(month, -1);
+  return {
+    today, month, ruleMode: cfg.ruleMode, appUrl: appUrl || '',
+    unknownMails: records.filter(r => r.childId === 'unknown' && r.date.slice(0, 7) === month).length,
+    children: cfg.children.map(c => Object.assign(
+      summarize_(c, month, totalFor(month, c.id), records, today, cfg),
+      { prevMonth: summarize_(c, prev, totalFor(prev, c.id), records, today, cfg) })),
+  };
+}
+
+// Node でのテスト用（Apps Script では module は未定義なので無視される）
+if (typeof module !== 'undefined') {
+  module.exports = { parseMail_, summarize_, buildDashboard_, shiftMonth_, daysInMonth_ };
+}
