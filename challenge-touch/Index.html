@@ -23,16 +23,17 @@
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: -apple-system, "Hiragino Sans", "Yu Gothic UI", "Meiryo", sans-serif; background: var(--bg); color: var(--text); padding: 16px; }
     .wrap { max-width: 640px; margin: 0 auto; }
-    h1 { font-size: 1.1rem; margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    h1 { font-size: 1.1rem; margin-bottom: 12px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+    h1 button { white-space: nowrap; }
     .card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px; margin-bottom: 14px; }
     .muted { color: var(--muted); font-size: .82rem; }
     .kid-name { font-size: 1.2rem; font-weight: 800; }
     .verdict { border-radius: var(--radius); padding: 18px; text-align: center; margin: 12px 0; }
     .verdict.ok { background: var(--ok-soft); color: var(--ok); }
     .verdict.ng { background: var(--ng-soft); color: var(--ng); }
-    .verdict .big { font-size: 1.9rem; font-weight: 900; }
+    .verdict .big { font-size: 1.5rem; font-weight: 900; }
     .verdict .why { font-size: 1rem; font-weight: 700; margin-top: 4px; }
-    .kid .verdict .big { font-size: clamp(1.8rem, 9vw, 2.6rem); white-space: nowrap; }
+    .kid .verdict .big { font-size: clamp(1.5rem, 7vw, 2rem); }
     .kid .verdict .why { font-size: 1.1rem; }
     .count { font-size: 2.2rem; font-weight: 900; }
     .count small { font-size: 1rem; color: var(--muted); font-weight: 700; }
@@ -67,6 +68,17 @@
     .err { color: var(--ng); font-weight: 700; margin-top: 10px; font-size: .9rem; }
     .login { max-width: 420px; margin: 40px auto; }
     .login input { width: auto; }
+    .minutes { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+    .minutes b { font-size: 1.4rem; }
+    .verdict.todo { background: var(--warn-soft); color: var(--warn); }
+    .sub { font-weight: 800; margin-top: 14px; }
+    .week { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-top: 6px; }
+    .week div { border-radius: 10px; background: var(--bg); text-align: center; padding: 6px 0; color: var(--muted); font-weight: 700; }
+    .week span { display: block; font-size: .72rem; }
+    .week .studied { background: var(--primary); color: #fff; }
+    .week .today { outline: 2.5px solid var(--warn); }
+    .week .future { opacity: .45; }
+    .note { margin-top: 10px; font-size: .85rem; background: var(--bg); border-radius: 10px; padding: 8px 10px; }
     .loading { text-align: center; padding: 40px; color: var(--muted); }
   </style>
 </head>
@@ -162,50 +174,44 @@
   }
 
   function childCard(c) {
-    const isCurrent = c.month === data.today.slice(0, 7);
-    const pct = c.total ? Math.min(100, c.done / c.total * 100) : 0;
-    const pacePct = c.total ? Math.min(100, c.expected / c.total * 100) : 0;
     let h = '<div class="card ' + (IS_KID ? 'kid' : '') + '">';
     h += '<div class="row" style="margin-top:0;justify-content:space-between"><span class="kid-name">' + esc(c.emoji + ' ' + c.name) + '</span>';
-    if (c.prevMonth.total > 0) {
-      h += c.prevMonth.monthDone ? '<span class="badge ok">先月 ぜんぶクリア</span>'
-        : '<span class="badge ng">先月 のこり' + c.prevMonth.remaining + '</span>';
+    h += c.monthDone ? '<span class="badge ok">' + Number(c.month.slice(5)) + '月号 完了</span>' : '';
+    h += '</div>';
+
+    // ゲーム時間（今月）
+    h += '<div class="minutes"><span class="muted">' + Number(c.month.slice(5)) + '月のゲーム時間</span><b>1日 ' + c.gameMinutes + '分</b>';
+    if (c.prevJudged) {
+      h += c.prevDone ? '<span class="badge ok">先月 完了</span>'
+        : '<span class="badge ng">先月 未完了 −' + (c.baseMinutes - c.gameMinutes) + '分</span>';
     }
     h += '</div>';
 
-    if (isCurrent) {
-      h += '<div class="verdict ' + (c.gameOk ? 'ok' : 'ng') + '"><div class="big">' + (c.gameOk ? '🎮 ゲームOK' : '✋ ゲームはまだ') + '</div>' +
-        '<div class="why">' + esc(c.reason) + '</div></div>';
-    } else {
-      h += '<div class="row"><span class="badge ' + (c.monthDone ? 'ok' : 'warn') + '">' + esc(c.reason) + '</span></div>';
+    if (c.isCurrent) {
+      const cls = c.status === 'todo' ? 'todo' : 'ok';
+      const big = c.status === 'free' ? '🎮 今日は休んでもOK' : c.status === 'ok' ? '🎮 ゲームOK' : '📘 今日やればゲームOK';
+      h += '<div class="verdict ' + cls + '"><div class="big">' + big + '</div><div class="why">' + esc(c.reason) + '</div></div>';
+
+      // 今週
+      h += '<div class="sub">今週 ' + c.weekDays + ' / ' + c.weeklyGoalDays + ' 日</div><div class="week">' +
+        c.week.map((w, i) => '<div class="' + (w.studied ? 'studied ' : '') + (w.isToday ? 'today ' : '') + (w.future ? 'future' : '') + '">' +
+          '<span>' + '月火水木金土日'[i] + '</span>' + (w.studied ? '★' : '・') + '</div>').join('') + '</div>';
+
+      if (!c.monthDone && c.judgedThisMonth) {
+        h += '<p class="note">月末までに' + Number(c.month.slice(5)) + '月号を全部終えないと、来月は <b>1日 ' + c.nextMinutesIfNot + '分</b>（終えれば ' + c.nextMinutesIfDone + '分）</p>';
+      }
     }
 
-    if (c.total > 0) {
-      h += '<div class="count" style="margin-top:8px">' + c.done + '<small> / ' + c.total + ' レッスン</small></div>';
-      h += '<div class="bar"><div class="fill" style="width:' + pct + '%"></div>' +
-        (isCurrent && !c.monthDone ? '<div class="pace" style="left:calc(' + pacePct + '% - 1px)"></div>' : '') + '</div>';
-      if (isCurrent && !c.monthDone) h += '<div class="legend"><span>今日までの目標: ' + c.expected + '</span><span>オレンジの線をこえていればOK</span></div>';
-      if (c.targetDay) h += '<p class="muted" style="margin-top:4px">🏁 目標日: ' + Number(c.month.slice(5)) + '月' + c.targetDay + '日までに全部</p>';
-      h += '<div class="stats">' +
-        '<div class="stat"><b>' + c.remaining + '</b><span>のこりレッスン</span></div>' +
-        '<div class="stat"><b>' + (isCurrent ? c.daysLeft : '-') + '</b><span>' + (c.targetDay ? '目標日まで' : 'のこり日数') + '</span></div>' +
-        '<div class="stat"><b>' + (isCurrent && c.remaining && c.daysLeft ? c.perDay : '-') + '</b><span>1日あたり</span></div></div>';
-    } else {
-      h += '<p class="muted" style="margin-top:8px">今月のレッスン数がまだ設定されていません（おうちの人が設定します）</p>';
-    }
+    h += '<div class="sub">' + Number(c.month.slice(5)) + '月 ' + c.studyDays.length + '日 / レッスン ' + c.lessons + '回</div>';
     h += calendar(c);
-    h += '<p class="muted" style="margin-top:6px">★ = チャレンジタッチをやった日（' + c.studyDays.length + '日）</p>';
+    h += '<p class="muted" style="margin-top:6px">★ = やった日（メールは翌日に届くので、今日の分は明日反映）</p>';
 
     if (!IS_KID) {
       h += '<div class="admin"><div class="muted">親の操作</div>' +
-        '<div class="row">必須レッスン数 <input type="number" min="0" id="total-' + c.childId + '" value="' + c.total + '">' +
-        '目標日 <input type="number" min="1" max="' + c.daysInMonth + '" placeholder="月末" id="target-' + c.childId + '" value="' + (c.targetDay || '') + '">' +
-        '<button onclick="act(\'setTotal\',{childId:\'' + c.childId + '\',total:document.getElementById(\'total-' + c.childId + '\').value,targetDay:document.getElementById(\'target-' + c.childId + '\').value})">設定</button></div>' +
-        '<div class="row">完了数 <button onclick="act(\'adjust\',{childId:\'' + c.childId + '\',delta:-1})">−1</button>' +
-        '<button onclick="act(\'adjust\',{childId:\'' + c.childId + '\',delta:1})">＋1</button>' +
-        '<input type="number" min="0" id="done-' + c.childId + '" value="' + c.done + '">' +
-        '<button onclick="act(\'setDone\',{childId:\'' + c.childId + '\',value:document.getElementById(\'done-' + c.childId + '\').value})">この数に合わせる</button></div>' +
-        (isCurrent ? '<div class="row"><button onclick="act(\'markDay\',{childId:\'' + c.childId + '\'})">今日やった日として登録</button></div>' : '') +
+        (c.isCurrent && !c.studiedToday ? '<div class="row"><button onclick="act(\'markDay\',{childId:\'' + c.childId + '\'})">今日やったのを確認した</button></div>' : '') +
+        '<div class="row">' + (c.monthDone
+          ? '<button onclick="act(\'unmarkComplete\',{childId:\'' + c.childId + '\'},\'この月を「未完了」に戻しますか？\')">この月を未完了に戻す</button>'
+          : '<button onclick="act(\'markComplete\',{childId:\'' + c.childId + '\'},\'完了メールが届いていなくても、この月を「完了」にしますか？\')">この月を完了扱いにする</button>') + '</div>' +
         (c.kidUrl ? '<div class="row"><span class="muted">子ども用リンク:</span> <a class="link" href="' + esc(c.kidUrl) + '">' + esc(c.kidUrl) + '</a></div>' +
           '<div class="row"><button onclick="act(\'resetKidLink\',{childId:\'' + c.childId + '\'},\'今のリンクは使えなくなります。作り直しますか？\')">子ども用リンクを作り直す</button></div>' : '') +
         '</div>';
@@ -223,8 +229,8 @@
     if (!kids.length) h += '<div class="card">表示できる子どもがいません</div>';
     h += kids.map(childCard).join('');
     if (!IS_KID) {
-      const rule = { pace: '月末に全部終わるペースならOK', daily: '今日やったらOK', strict: '今日やって、かつペース内ならOK' }[data.ruleMode] || data.ruleMode;
-      h += '<div class="card"><div class="muted">ルール: ' + esc(rule) + '</div>' +
+      h += '<div class="card"><div class="muted">ルール: 今日やった・今週' + data.weeklyGoalDays + '日達成・今月分完了 のどれかでゲームOK。' +
+        '月末までに全部終わらなければ翌月は1日' + data.penaltyMinutes + '分減（' + monthLabel(data.ruleStartMonth) + 'の結果から）</div>' +
         (data.unknownMails ? '<p class="muted" style="margin-top:6px">⚠️ 誰のものか判別できなかった通知メールが ' + data.unknownMails + ' 通あります（CONFIG.children の keywords を確認）</p>' : '') +
         '<div class="row"><button class="primary" onclick="act(\'sync\')">メールを今すぐ取り込む</button></div></div>';
     }
