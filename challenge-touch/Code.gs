@@ -91,6 +91,23 @@ function prepareSheet_() {
   }
 }
 
+/**
+ * レッスン数のずれを調べる用。赤ペン・まとめテスト・テストなど、「レッスン数」以外の
+ * 取り組みが書かれている行を、メールごとに実行ログへ出す。
+ */
+function debugFindExtras() {
+  let found = 0;
+  GmailApp.search(CONFIG.gmailQuery, 0, 100).forEach(th => th.getMessages().forEach(m => {
+    const text = mailText_(m);
+    const lines = text.split(/\r?\n/).map(l => l.trim()).filter(l => /赤ペン|まとめ|テスト|提出|チャレンジ/.test(l) && l.length < 120);
+    const p = parseMail_(m.getSubject(), text, m.getDate(), CONFIG);
+    if (!lines.length) return;
+    found++;
+    Logger.log('==== ' + p.date + ' ' + m.getSubject() + '（読み取ったレッスン数 ' + p.lessons + '）\n' + lines.join('\n'));
+  }));
+  Logger.log(found ? found + '通に該当する行がありました' : '赤ペン・まとめテストに関する行は見つかりませんでした');
+}
+
 /** メールの読み取り結果を確認するためのデバッグ用。実行ログに最新メールと判定結果を表示する。 */
 function debugLatestMails() {
   const threads = GmailApp.search(CONFIG.gmailQuery, 0, 5);
@@ -477,6 +494,9 @@ function summarize_(child, month, records, today, cfg) {
   const studyDaySet = new Set(mine.filter(r => r.source === 'mail' || r.source === 'day').map(r => r.date));
   const inMonth = mine.filter(r => r.date.slice(0, 7) === month);
   const total = monthTotal_(records, child.id, month);
+  // 日ごとのレッスン数（保護者サポートの「日ごと」と見比べる用）
+  const dayLessons = {};
+  inMonth.filter(r => r.source === 'mail').forEach(r => { dayLessons[r.date] = (dayLessons[r.date] || 0) + r.lessons; });
   const studyDays = Array.from(new Set(inMonth
     .filter(r => r.source === 'mail' || r.source === 'day').map(r => r.date))).sort();
   const monthDone = monthCompleted_(records, child.id, month);
@@ -517,7 +537,7 @@ function summarize_(child, month, records, today, cfg) {
 
   return {
     childId: child.id, name: child.name, emoji: child.emoji || '⭐',
-    month, isCurrent, lessons, total, studyDays,
+    month, isCurrent, lessons, total, studyDays, dayLessons,
     prevMonthLessons: monthLessons_(records, child.id, shiftMonth_(month, -1)), daysInMonth: daysInMonth_(month), monthDone,
     week, weekDays, weeklyGoalDays: cfg.weeklyGoalDays, weekGoalMet, studiedToday,
     status: isCurrent ? status : null, reason: isCurrent ? reason : '',
