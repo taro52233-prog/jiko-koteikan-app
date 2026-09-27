@@ -31,6 +31,13 @@ const CONFIG = {
   minMinutes: 0,
   // この月の結果から判定を始める（ルールを伝える前の月でペナルティを出さないため）
   ruleStartMonth: '2026-10',
+  // 親へのお知らせメール（見に行かなくても済むように、必要なときだけ届く）
+  //   monthlyReport : 毎月2日の朝、先月の結果と今月のゲーム時間を知らせる
+  //   reminderDay   : この日の夕方、今月号がまだ終わっていない子がいるときだけ知らせる（0 = 送らない）
+  //   notifyTo      : 送り先（空なら、このスクリプトを動かしているGoogleアカウント）。複数はカンマ区切り
+  monthlyReport: true,
+  reminderDay: 20,
+  notifyTo: '',
 };
 
 const TZ = 'Asia/Tokyo';
@@ -56,10 +63,13 @@ function setup() {
   if (!props.getProperty('ADMIN_PASSWORD')) props.setProperty('ADMIN_PASSWORD', randomString_(10));
   kidTokens_(); // 子ども用リンクの合言葉を作っておく
   sheet_('records', REC_HEADERS);
+  const handlers = ['syncFromGmail', 'sendMonthlyReport', 'sendReminder'];
   ScriptApp.getProjectTriggers()
-    .filter(t => t.getHandlerFunction() === 'syncFromGmail')
+    .filter(t => handlers.indexOf(t.getHandlerFunction()) >= 0)
     .forEach(t => ScriptApp.deleteTrigger(t));
   ScriptApp.newTrigger('syncFromGmail').timeBased().everyHours(1).create();
+  if (CONFIG.monthlyReport) ScriptApp.newTrigger('sendMonthlyReport').timeBased().onMonthDay(2).atHour(8).create();
+  if (CONFIG.reminderDay) ScriptApp.newTrigger('sendReminder').timeBased().onMonthDay(CONFIG.reminderDay).atHour(18).create();
   syncFromGmail();
   Logger.log('セットアップ完了。スプレッドシート: ' + ss_().getUrl());
   Logger.log('管理画面のパスワード: ' + props.getProperty('ADMIN_PASSWORD') +
@@ -75,6 +85,41 @@ function debugLatestMails() {
     Logger.log('==== 受信 ' + m.getDate() + ' / ' + m.getFrom() + '\n件名: ' + m.getSubject() +
       '\n判定: ' + JSON.stringify(parsed) + '\n本文(先頭600字):\n' + mailText_(m).slice(0, 600));
   }));
+}
+
+// ===== 親へのお知らせメール =====
+
+function sendMonthlyReport() {
+  syncFromGmail();
+  notify_(buildMonthlyReport_(readRecords_(), todayStr_(), CONFIG));
+}
+
+function sendReminder() {
+  syncFromGmail();
+  notify_(buildReminder_(readRecords_(), todayStr_(), CONFIG));
+}
+
+/** 送らずに、今送ったらどうなるかを実行ログに出す（確認用） */
+function previewNotifications() {
+  const records = readRecords_();
+  const today = todayStr_();
+  [buildMonthlyReport_(records, today, CONFIG), buildReminder_(records, today, CONFIG)].forEach(m => {
+    Logger.log(m ? '件名: ' + m.subject + '\n' + m.body : '（今日の時点では送る内容なし）');
+  });
+}
+
+function notify_(mail) {
+  if (!mail) return;
+  const url = ScriptApp.getService().getUrl();
+  MailApp.sendEmail({
+    to: CONFIG.notifyTo || Session.getEffectiveUser().getEmail(),
+    subject: mail.subject,
+    body: mail.body + (url ? '\n\n管理画面: ' + url : ''),
+  });
+}
+
+function todayStr_() {
+  return Utilities.formatDate(new Date(), TZ, 'yyyy-MM-dd');
 }
 
 // ===== Gmail 取り込み =====
@@ -457,7 +502,8 @@ function summarize_(child, month, records, today, cfg) {
 
   return {
     childId: child.id, name: child.name, emoji: child.emoji || '⭐',
-    month, isCurrent, lessons, total, studyDays, daysInMonth: daysInMonth_(month), monthDone,
+    month, isCurrent, lessons, total, studyDays,
+    prevMonthLessons: monthLessons_(records, child.id, shiftMonth_(month, -1)), daysInMonth: daysInMonth_(month), monthDone,
     week, weekDays, weeklyGoalDays: cfg.weeklyGoalDays, weekGoalMet, studiedToday,
     status: isCurrent ? status : null, reason: isCurrent ? reason : '',
     gameMinutes: game.minutes, baseMinutes: game.base, prevJudged: game.prevJudged, prevDone: game.prevDone,
@@ -480,7 +526,60 @@ function buildDashboard_(records, month, today, cfg) {
   };
 }
 
+const mLabel_ = month => Number(month.slice(5)) + '月';
+
+/** 先月の結果と今月のゲーム時間（判定対象の月でなければ null） */
+function buildMonthlyReport_(records, today, cfg) {
+  const month = today.slice(0, 7);
+  const prev = shiftMonth_(month, -1);
+  if (prev < cfg.ruleStartMonth) return null;
+  const lines = cfg.children.map(c => {
+    const done = monthCompleted_(records, c.id, prev);
+    const s = summarize_(c, prev, records, today, cfg);
+    const game = gameMinutes_(c, month, records, today, cfg);
+    const before = gameMinutes_(c, prev, records, today, cfg);
+    let line = c.emoji + ' ' + c.name + ': ' + mLabel_(prev) + '号 ' + (done ? '✅ 完了' : '❌ 未完了') +
+      '（やった日 ' + s.studyDays.length + '日・' + s.lessons + 'レッスン）\n' +
+      '　→ ' + mLabel_(month) + 'のゲームは 1日 ' + game.minutes + '分';
+    if (game.base > before.base) line += '\n　🎉 ' + (c.promoteAfterMonths || 2) + 'か月つづけて完了！今月からふだんの時間が ' + game.base + '分に上がりました';
+    else if (c.promoteTo && game.base < c.promoteTo) {
+      line += '\n　🚀 あと ' + Math.max(1, (c.promoteAfterMonths || 2) - game.streak) + 'か月つづけて完了すると ' + c.promoteTo + '分に上がります';
+    }
+    return line;
+  });
+  return {
+    subject: '【チャレンジタッチ】' + mLabel_(prev) + 'の結果と' + mLabel_(month) + 'のゲーム時間',
+    body: lines.join('\n\n') + '\n\n子どもたちに伝えてあげてください。',
+  };
+}
+
+/** 今月号がまだ終わっていない子がいるときだけ、注意のお知らせ（いなければ null） */
+function buildReminder_(records, today, cfg) {
+  const month = today.slice(0, 7);
+  if (month < cfg.ruleStartMonth) return null;
+  const lastDay = daysInMonth_(month);
+  const daysLeft = lastDay - Number(today.slice(8, 10)) + 1;
+  const lines = cfg.children
+    .filter(c => !monthCompleted_(records, c.id, month))
+    .map(c => {
+      const s = summarize_(c, month, records, today, cfg);
+      const prevLessons = monthLessons_(records, c.id, shiftMonth_(month, -1));
+      return c.emoji + ' ' + c.name + ': ' + mLabel_(month) + '号がまだ完了していません' +
+        '（今月 ' + s.studyDays.length + '日・' + s.lessons + 'レッスン' + (prevLessons ? '、先月は全部で ' + prevLessons + 'レッスン' : '') + '）\n' +
+        '　' + mLabel_(month) + lastDay + '日までに終わらないと、' + mLabel_(shiftMonth_(month, 1)) + 'は 1日 ' + s.nextMinutesIfNot +
+        '分になります（終われば ' + s.nextMinutesIfDone + '分）';
+    });
+  if (!lines.length) return null;
+  return {
+    subject: '【チャレンジタッチ】' + mLabel_(month) + '号 のこり' + daysLeft + '日です',
+    body: lines.join('\n\n') + '\n\n※昨日の分までのメールで判定しています。',
+  };
+}
+
 // Node でのテスト用（Apps Script では module は未定義なので無視される）
 if (typeof module !== 'undefined') {
-  module.exports = { parseMail_, summarize_, buildDashboard_, shiftMonth_, gameMinutes_, monthCompleted_ };
+  module.exports = {
+    parseMail_, summarize_, buildDashboard_, shiftMonth_, gameMinutes_, monthCompleted_,
+    buildMonthlyReport_, buildReminder_,
+  };
 }

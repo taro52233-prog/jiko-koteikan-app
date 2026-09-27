@@ -114,3 +114,30 @@ s = summarize_(oto, '2026-10', prog.concat(c('2026-10')), '2026-10-20', cfg2);
 assert.strictEqual(s.lessons, 58); // 完了済みなら必須数ぶん
 
 console.log('all tests passed');
+
+// ---- お知らせメール ----
+{
+  const { buildMonthlyReport_, buildReminder_ } = ctx.module.exports;
+  const cfg3 = { ...cfg, ruleStartMonth: '2026-10' };
+  const recs = [rec('a', '2026-10-20', 'complete', 0), rec('a', '2026-10-05', 'mail', 30), rec('b', '2026-10-06', 'mail', 10)];
+  // 判定開始前の月の結果は送らない
+  assert.strictEqual(buildMonthlyReport_(recs, '2026-10-02', cfg3), null);
+  const r = buildMonthlyReport_(recs, '2026-11-02', cfg3);
+  assert.match(r.subject, /10月の結果と11月のゲーム時間/);
+  assert.match(r.body, /兄: 10月号 ✅ 完了/);
+  assert.match(r.body, /11月のゲームは 1日 60分/);
+  assert.match(r.body, /弟: 10月号 ❌ 未完了/);
+  assert.match(r.body, /11月のゲームは 1日 0分/);
+  assert.match(r.body, /あと 2か月つづけて完了すると 60分/);
+  // 昇格した月
+  const up = buildMonthlyReport_([rec('b', '2026-10-20', 'complete', 0), rec('b', '2026-11-20', 'complete', 0)], '2026-12-02', cfg3);
+  assert.match(up.body, /ふだんの時間が 60分に上がりました/);
+  // リマインド: 未完了の子だけ
+  const rem = buildReminder_([rec('a', '2026-10-15', 'complete', 0), rec('b', '2026-10-06', 'mail', 10)], '2026-10-20', cfg3);
+  assert.match(rem.subject, /のこり12日/);
+  assert.doesNotMatch(rem.body, /兄/);
+  assert.match(rem.body, /弟: 10月号がまだ完了していません/);
+  // 全員完了なら送らない
+  assert.strictEqual(buildReminder_([rec('a', '2026-10-15', 'complete', 0), rec('b', '2026-10-16', 'complete', 0)], '2026-10-20', cfg3), null);
+  console.log('notification tests passed');
+}
