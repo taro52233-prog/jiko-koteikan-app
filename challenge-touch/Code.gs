@@ -3,7 +3,7 @@
  *
  * - Gmail に届くチャレンジタッチの通知メールを定期的に読み取り、子どもごとに記録する
  * - 「今月のレッスンを全部やる」ためのペースを計算し、今日ゲームしてよいかを判定する
- * - Webアプリとして公開し、子ども用（閲覧のみ）と親用（PINで操作）の画面を出す
+ * - Webアプリとして公開し、管理画面（パスワードでログイン）と子ども用画面（専用リンク・閲覧のみ）を出す
  *
  * セットアップ手順は README.md を参照。
  */
@@ -46,7 +46,8 @@ function setup() {
     const ss = SpreadsheetApp.create('チャレンジタッチ記録');
     props.setProperty('SHEET_ID', ss.getId());
   }
-  if (!props.getProperty('PARENT_PIN')) props.setProperty('PARENT_PIN', '0000');
+  if (!props.getProperty('ADMIN_PASSWORD')) props.setProperty('ADMIN_PASSWORD', randomString_(10));
+  kidTokens_(); // 子ども用リンクの合言葉を作っておく
   sheet_('records', REC_HEADERS);
   sheet_('months', MONTH_HEADERS);
   ScriptApp.getProjectTriggers()
@@ -55,7 +56,8 @@ function setup() {
   ScriptApp.newTrigger('syncFromGmail').timeBased().everyMinutes(30).create();
   syncFromGmail();
   Logger.log('セットアップ完了。スプレッドシート: ' + ss_().getUrl());
-  Logger.log('親PINの初期値は 0000 です。プロジェクトの設定 > スクリプト プロパティ の PARENT_PIN で変更してください。');
+  Logger.log('管理画面のパスワード: ' + props.getProperty('ADMIN_PASSWORD') +
+    '\n（変更は プロジェクトの設定 > スクリプト プロパティ の ADMIN_PASSWORD）');
 }
 
 /** 通知メールの中身を確認するためのデバッグ用。実行ログに最新メールを表示する。 */
@@ -102,25 +104,102 @@ function syncFromGmail() {
 
 // ===== Webアプリ =====
 
+const SESSION_SECONDS = 6 * 60 * 60; // ログインの有効時間（CacheService の上限が6時間）
+const MAX_LOGIN_FAILURES = 10;       // これを超えて間違えると15分ログインできなくなる
+
 function doGet(e) {
   const t = HtmlService.createTemplateFromFile('Index');
-  t.childParam = (e && e.parameter && e.parameter.child) || '';
+  t.kidParam = (e && e.parameter && e.parameter.kid) || '';
   return t.evaluate()
     .setTitle('チャレンジタッチ')
     .addMetaTag('viewport', 'width=device-width, initial-scale=1');
 }
 
-/** 画面表示用データ（誰でも取得可。読み取りのみ） */
-function getDashboard(month) {
-  const today = Utilities.formatDate(new Date(), TZ, 'yyyy-MM-dd');
-  return buildDashboard_(readRecords_(), readTotals_(), month || today.slice(0, 7), today, CONFIG,
-    ScriptApp.getService().getUrl());
+/** 管理画面ログイン。成功するとセッショントークンを返す */
+function login(password) {
+  const cache = CacheService.getScriptCache();
+  const failures = Number(cache.get('loginFailures') || 0);
+  if (failures >= MAX_LOGIN_FAILURES) throw new Error('パスワードを間違えすぎました。15分ほど待ってからやり直してください');
+  const expected = PropertiesService.getScriptProperties().getProperty('ADMIN_PASSWORD');
+  if (!expected) throw new Error('未セットアップです。先に setup() を実行してください');
+  if (String(password) !== expected) {
+    cache.put('loginFailures', String(failures + 1), 15 * 60);
+    throw new Error('パスワードがちがいます');
+  }
+  cache.remove('loginFailures');
+  const token = Utilities.getUuid() + Utilities.getUuid();
+  cache.put('session:' + token, '1', SESSION_SECONDS);
+  return token;
 }
 
-/** 親の操作（PIN必須） */
-function parentAction(pin, action, p) {
-  const expected = PropertiesService.getScriptProperties().getProperty('PARENT_PIN') || '0000';
-  if (String(pin) !== expected) throw new Error('PINがちがいます');
+function logout(token) {
+  if (token) CacheService.getScriptCache().remove('session:' + token);
+}
+
+function requireSession_(token) {
+  if (!token || !CacheService.getScriptCache().get('session:' + token)) {
+    throw new Error('LOGIN_REQUIRED');
+  }
+}
+
+/** 管理画面用データ（ログイン必須） */
+function getDashboard(token, month) {
+  requireSession_(token);
+  return dashboard_(month);
+}
+
+/** 子ども用データ（子ども用リンクの合言葉で、その子の分だけ返す） */
+function getKidView(kidToken) {
+  const tokens = kidTokens_();
+  const childId = Object.keys(tokens).find(id => kidToken && tokens[id] === kidToken);
+  if (!childId) throw new Error('このリンクは使えません。おうちの人に新しいリンクをもらってください');
+  const d = dashboard_(null);
+  return { today: d.today, month: d.month, children: d.children.filter(c => c.childId === childId) };
+}
+
+function dashboard_(month) {
+  const today = Utilities.formatDate(new Date(), TZ, 'yyyy-MM-dd');
+  const d = buildDashboard_(readRecords_(), readTotals_(), month || today.slice(0, 7), today, CONFIG, '');
+  const url = ScriptApp.getService().getUrl();
+  const tokens = kidTokens_();
+  d.children.forEach(c => { c.kidUrl = url && tokens[c.childId] ? url + '?kid=' + tokens[c.childId] : ''; });
+  return d;
+}
+
+/** 子どもごとのリンク用合言葉（推測されにくいランダム文字列）。{childId: token} */
+function kidTokens_() {
+  const props = PropertiesService.getScriptProperties();
+  const tokens = JSON.parse(props.getProperty('KID_TOKENS') || '{}');
+  let changed = false;
+  CONFIG.children.forEach(c => {
+    if (!tokens[c.id]) { tokens[c.id] = randomString_(24); changed = true; }
+  });
+  if (changed) props.setProperty('KID_TOKENS', JSON.stringify(tokens));
+  return tokens;
+}
+
+function randomString_(len) {
+  const chars = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let s = '';
+  while (s.length < len) {
+    Utilities.getUuid().replace(/-/g, '').match(/../g).forEach(h => {
+      if (s.length < len) s += chars[parseInt(h, 16) % chars.length];
+    });
+  }
+  return s;
+}
+
+/** 管理画面の操作（ログイン必須） */
+function parentAction(token, action, p) {
+  requireSession_(token);
+  if (action === 'resetKidLink') {
+    if (!CONFIG.children.some(c => c.id === p.childId)) throw new Error('不明な子ども: ' + p.childId);
+    const props = PropertiesService.getScriptProperties();
+    const tokens = kidTokens_();
+    tokens[p.childId] = randomString_(24);
+    props.setProperty('KID_TOKENS', JSON.stringify(tokens));
+    return dashboard_(p.month);
+  }
   const lock = LockService.getScriptLock();
   lock.waitLock(20000);
   try {
@@ -139,15 +218,13 @@ function parentAction(pin, action, p) {
       if (delta) addRecord_(date, p.childId, delta, 'manual', '完了数を' + p.value + 'に合わせる');
     } else if (action === 'markDay') {
       addRecord_(p.date || today, p.childId, 0, 'day', '学習日を手動登録');
-    } else if (action === 'checkPin') {
-      // PIN確認のみ
     } else {
       throw new Error('不明な操作: ' + action);
     }
   } finally {
     try { lock.releaseLock(); } catch (err) { /* 解放済み */ }
   }
-  return getDashboard(p && p.month);
+  return dashboard_(p && p.month);
 }
 
 // ===== スプレッドシート入出力 =====
