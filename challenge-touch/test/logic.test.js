@@ -73,3 +73,19 @@ assert.strictEqual(d.children[0].total, 25);
 assert.strictEqual(d.children[0].prevMonth.monthDone, true);
 
 console.log('all tests passed');
+
+// 目標日（例: 24日）があれば、その日までに全部終わるペースで判定する
+s = summarize_(child, '2026-09', 61, [rec('2026-09-01', 30)], '2026-09-12', cfg, 24);
+assert.strictEqual(s.expected, 31); // ceil(61*12/24)
+assert.strictEqual(s.gameOk, false);
+assert.strictEqual(s.daysLeft, 13);
+// 目標日を過ぎたら全部終わるまでNG
+s = summarize_(child, '2026-09', 61, [rec('2026-09-01', 60)], '2026-09-26', cfg, 24);
+assert.strictEqual(s.expected, 61);
+assert.strictEqual(s.gameOk, false);
+assert.strictEqual(s.daysLeft, 0);
+assert.strictEqual(s.perDay, 1);
+// 設定オブジェクト形式の totals
+const d2 = buildDashboard_([], { '2026-09|a': { total: 61, targetDay: 24 } }, '2026-09', '2026-09-12', cfg, '');
+assert.strictEqual(d2.children[0].targetDay, 24);
+console.log('target-day tests passed');

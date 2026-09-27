@@ -35,7 +35,7 @@ const CONFIG = {
 
 const TZ = 'Asia/Tokyo';
 const REC_HEADERS = ['id', 'date', 'childId', 'lessons', 'source', 'note', 'createdAt'];
-const MONTH_HEADERS = ['month', 'childId', 'total'];
+const MONTH_HEADERS = ['month', 'childId', 'total', 'targetDay'];
 
 // ===== セットアップ・トリガー =====
 
@@ -208,7 +208,9 @@ function parentAction(token, action, p) {
       lock.releaseLock();
       syncFromGmail();
     } else if (action === 'setTotal') {
-      setTotal_(p.month, p.childId, Math.max(0, parseInt(p.total, 10) || 0));
+      const targetDay = parseInt(p.targetDay, 10) || 0;
+      if (targetDay < 0 || targetDay > daysInMonth_(p.month)) throw new Error('目標日は1〜' + daysInMonth_(p.month) + 'で入れてください（空欄なら月末）');
+      setTotal_(p.month, p.childId, Math.max(0, parseInt(p.total, 10) || 0), targetDay);
     } else if (action === 'adjust') {
       addRecord_(p.date || today, p.childId, parseInt(p.delta, 10) || 0, 'manual', '手動調整');
     } else if (action === 'setDone') {
@@ -261,20 +263,22 @@ function readRecords_() {
 function readTotals_() {
   const values = sheet_('months', MONTH_HEADERS).getDataRange().getValues().slice(1);
   const totals = {};
-  values.filter(r => r[0]).forEach(r => { totals[cellToStr_(r[0], 'yyyy-MM') + '|' + r[1]] = Number(r[2]) || 0; });
+  values.filter(r => r[0]).forEach(r => {
+    totals[cellToStr_(r[0], 'yyyy-MM') + '|' + r[1]] = { total: Number(r[2]) || 0, targetDay: Number(r[3]) || 0 };
+  });
   return totals;
 }
 
-function setTotal_(month, childId, total) {
+function setTotal_(month, childId, total, targetDay) {
   const sh = sheet_('months', MONTH_HEADERS);
   const values = sh.getDataRange().getValues();
   for (let i = 1; i < values.length; i++) {
     if (cellToStr_(values[i][0], 'yyyy-MM') === month && String(values[i][1]) === childId) {
-      sh.getRange(i + 1, 3).setValue(total);
+      sh.getRange(i + 1, 3, 1, 2).setValues([[total, targetDay || '']]);
       return;
     }
   }
-  sh.appendRow(["'" + month, childId, total]);
+  sh.appendRow(["'" + month, childId, total, targetDay || '']);
 }
 
 function addRecord_(date, childId, lessons, source, note) {
@@ -325,9 +329,10 @@ function sumLessons_(records, childId, month) {
 
 /**
  * 1人・1か月分の状況を計算する。
- * ペース判定: 「今日までに終わっているべき数」= ceil(総数 × 経過日数 / 月の日数) - 猶予
+ * ペース判定: 「今日までに終わっているべき数」= ceil(総数 × 経過日数 / 締め日) - 猶予
+ * 締め日は目標日（進研ゼミの保護者サポートに出る日）があればその日、なければ月末。
  */
-function summarize_(child, month, total, records, today, cfg) {
+function summarize_(child, month, total, records, today, cfg, targetDay) {
   const mine = records.filter(r => r.childId === child.id && r.date.slice(0, 7) === month);
   const done = Math.max(0, mine.reduce((s, r) => s + r.lessons, 0));
   const studyDays = Array.from(new Set(
@@ -337,10 +342,12 @@ function summarize_(child, month, total, records, today, cfg) {
   const dim = daysInMonth_(month);
   const isCurrent = month === thisMonth;
   const elapsed = isCurrent ? Number(today.slice(8, 10)) : (month < thisMonth ? dim : 0);
-  const expected = total > 0 ? Math.max(0, Math.ceil(total * elapsed / dim) - (cfg.paceGraceLessons || 0)) : 0;
+  const deadline = targetDay > 0 && targetDay <= dim ? targetDay : dim;
+  const expected = total > 0
+    ? Math.max(0, Math.ceil(total * Math.min(elapsed, deadline) / deadline) - (cfg.paceGraceLessons || 0)) : 0;
 
   const remaining = Math.max(0, total - done);
-  const daysLeft = isCurrent ? dim - elapsed + 1 : 0; // 今日を含む
+  const daysLeft = isCurrent ? Math.max(0, deadline - elapsed + 1) : 0; // 締め日まで、今日を含む
   const perDay = daysLeft > 0 ? Math.ceil(remaining / daysLeft) : remaining;
   const studiedToday = isCurrent && studyDays.indexOf(today) >= 0;
   const monthDone = total > 0 && done >= total;
@@ -377,23 +384,27 @@ function summarize_(child, month, total, records, today, cfg) {
   return {
     childId: child.id, name: child.name, emoji: child.emoji || '⭐',
     month, total, done, remaining, expected, behind, onPace, monthDone,
-    daysInMonth: dim, elapsed, daysLeft, perDay, studiedToday, studyDays,
+    daysInMonth: dim, deadline, targetDay: deadline < dim ? deadline : 0, elapsed, daysLeft, perDay, studiedToday, studyDays,
     gameOk: isCurrent ? gameOk : null, reason,
   };
 }
 
 function buildDashboard_(records, totals, month, today, cfg, appUrl) {
-  const totalFor = (m, id) => {
+  const setting = (m, id) => {
     const t = totals[m + '|' + id];
-    return t === undefined ? (cfg.defaultMonthlyLessons || 0) : t;
+    if (t === undefined) return { total: cfg.defaultMonthlyLessons || 0, targetDay: 0 };
+    return typeof t === 'number' ? { total: t, targetDay: 0 } : t;
+  };
+  const sum = (m, c) => {
+    const st = setting(m, c.id);
+    return summarize_(c, m, st.total, records, today, cfg, st.targetDay);
   };
   const prev = shiftMonth_(month, -1);
   return {
     today, month, ruleMode: cfg.ruleMode, appUrl: appUrl || '',
     unknownMails: records.filter(r => r.childId === 'unknown' && r.date.slice(0, 7) === month).length,
     children: cfg.children.map(c => Object.assign(
-      summarize_(c, month, totalFor(month, c.id), records, today, cfg),
-      { prevMonth: summarize_(c, prev, totalFor(prev, c.id), records, today, cfg) })),
+      sum(month, c), { prevMonth: sum(prev, c) })),
   };
 }
 

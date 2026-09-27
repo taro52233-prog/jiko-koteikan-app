@@ -185,10 +185,11 @@
       h += '<div class="bar"><div class="fill" style="width:' + pct + '%"></div>' +
         (isCurrent && !c.monthDone ? '<div class="pace" style="left:calc(' + pacePct + '% - 1px)"></div>' : '') + '</div>';
       if (isCurrent && !c.monthDone) h += '<div class="legend"><span>今日までの目標: ' + c.expected + '</span><span>オレンジの線をこえていればOK</span></div>';
+      if (c.targetDay) h += '<p class="muted" style="margin-top:4px">🏁 目標日: ' + Number(c.month.slice(5)) + '月' + c.targetDay + '日までに全部</p>';
       h += '<div class="stats">' +
         '<div class="stat"><b>' + c.remaining + '</b><span>のこりレッスン</span></div>' +
-        '<div class="stat"><b>' + (isCurrent ? c.daysLeft : '-') + '</b><span>のこり日数</span></div>' +
-        '<div class="stat"><b>' + (isCurrent && c.remaining ? c.perDay : '-') + '</b><span>1日あたり</span></div></div>';
+        '<div class="stat"><b>' + (isCurrent ? c.daysLeft : '-') + '</b><span>' + (c.targetDay ? '目標日まで' : 'のこり日数') + '</span></div>' +
+        '<div class="stat"><b>' + (isCurrent && c.remaining && c.daysLeft ? c.perDay : '-') + '</b><span>1日あたり</span></div></div>';
     } else {
       h += '<p class="muted" style="margin-top:8px">今月のレッスン数がまだ設定されていません（おうちの人が設定します）</p>';
     }
@@ -197,8 +198,9 @@
 
     if (!IS_KID) {
       h += '<div class="admin"><div class="muted">親の操作</div>' +
-        '<div class="row">今月のレッスン数 <input type="number" min="0" id="total-' + c.childId + '" value="' + c.total + '">' +
-        '<button onclick="act(\'setTotal\',{childId:\'' + c.childId + '\',total:document.getElementById(\'total-' + c.childId + '\').value})">設定</button></div>' +
+        '<div class="row">必須レッスン数 <input type="number" min="0" id="total-' + c.childId + '" value="' + c.total + '">' +
+        '目標日 <input type="number" min="1" max="' + c.daysInMonth + '" placeholder="月末" id="target-' + c.childId + '" value="' + (c.targetDay || '') + '">' +
+        '<button onclick="act(\'setTotal\',{childId:\'' + c.childId + '\',total:document.getElementById(\'total-' + c.childId + '\').value,targetDay:document.getElementById(\'target-' + c.childId + '\').value})">設定</button></div>' +
         '<div class="row">完了数 <button onclick="act(\'adjust\',{childId:\'' + c.childId + '\',delta:-1})">−1</button>' +
         '<button onclick="act(\'adjust\',{childId:\'' + c.childId + '\',delta:1})">＋1</button>' +
         '<input type="number" min="0" id="done-' + c.childId + '" value="' + c.done + '">' +
