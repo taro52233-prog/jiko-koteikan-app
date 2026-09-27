@@ -56,10 +56,7 @@ const REC_HEADERS = ['id', 'date', 'childId', 'lessons', 'source', 'note', 'crea
 /** 初回に1回だけ手動実行する。スプレッドシート作成・パスワード発行・定期実行トリガー登録を行う。 */
 function setup() {
   const props = PropertiesService.getScriptProperties();
-  if (!props.getProperty('SHEET_ID')) {
-    const ss = SpreadsheetApp.create('チャレンジタッチ記録');
-    props.setProperty('SHEET_ID', ss.getId());
-  }
+  if (!props.getProperty('SHEET_ID')) props.setProperty('SHEET_ID', prepareSheet_().getId());
   if (!props.getProperty('ADMIN_PASSWORD')) props.setProperty('ADMIN_PASSWORD', randomString_(10));
   kidTokens_(); // 子ども用リンクの合言葉を作っておく
   sheet_('records', REC_HEADERS);
@@ -74,6 +71,24 @@ function setup() {
   Logger.log('セットアップ完了。スプレッドシート: ' + ss_().getUrl());
   Logger.log('管理画面のパスワード: ' + props.getProperty('ADMIN_PASSWORD') +
     '\n（変更は プロジェクトの設定 > スクリプト プロパティ の ADMIN_PASSWORD）');
+}
+
+/**
+ * 記録用スプレッドシートを用意する。
+ * スプレッドシートの「拡張機能 → Apps Script」から作ったプロジェクトなら、そのシートを使う（おすすめ）。
+ * そうでなければ新しく作る。
+ */
+function prepareSheet_() {
+  const active = SpreadsheetApp.getActiveSpreadsheet();
+  if (active) return active;
+  try {
+    return SpreadsheetApp.create('チャレンジタッチ記録');
+  } catch (err) {
+    throw new Error('スプレッドシートを作れませんでした（' + err.message + '）。\n' +
+      '対処: Googleスプレッドシートを自分で新しく作り、そのシートの「拡張機能 → Apps Script」に' +
+      'このコードを貼り直して setup を実行してください。複数のGoogleアカウントにログインしている場合は、' +
+      'シークレットウィンドウで通知メールが届くアカウントだけにログインして行ってください。');
+  }
 }
 
 /** メールの読み取り結果を確認するためのデバッグ用。実行ログに最新メールと判定結果を表示する。 */
