@@ -9,7 +9,7 @@ vm.runInNewContext(fs.readFileSync(path.join(__dirname, '..', 'Code.gs'), 'utf8'
 const { parseMail_, summarize_, gameMinutes_ } = ctx.module.exports;
 
 const ani = { id: 'a', name: '兄', keywords: ['ソラ'], baseMinutes: 60 };
-const oto = { id: 'b', name: '弟', keywords: ['リク'], baseMinutes: 30 };
+const oto = { id: 'b', name: '弟', keywords: ['リク'], baseMinutes: 30, promoteTo: 60, promoteAfterMonths: 2 };
 const cfg = { children: [ani, oto], weeklyGoalDays: 5, penaltyMinutes: 30, minMinutes: 0, ruleStartMonth: '2026-09' };
 const rec = (childId, date, source = 'mail', lessons = 1) => ({ id: Math.random() + '', date, childId, lessons, source });
 
@@ -79,5 +79,38 @@ assert.strictEqual(gameMinutes_(ani, '2026-10', [rec('a', '2026-09-24', 'complet
 s = summarize_(oto, '2026-09', [], '2026-09-27', cfg);
 assert.strictEqual(s.nextMinutesIfDone, 30);
 assert.strictEqual(s.nextMinutesIfNot, 0);
+
+// ---- 案C: 2か月つづけて完了したら弟は60分に上がる ----
+const c = (m) => rec('b', m + '-20', 'complete', 0);
+let cfg2 = { ...cfg, ruleStartMonth: '2026-10' };
+assert.strictEqual(gameMinutes_(oto, '2026-11', [c('2026-10')], '2026-11-01', cfg2).minutes, 30); // 1か月目はまだ30分
+assert.strictEqual(gameMinutes_(oto, '2026-12', [c('2026-10'), c('2026-11')], '2026-12-01', cfg2).minutes, 60); // 2か月連続で60分
+// 上がったあとに未完了 → その月は 60-30=30分、ふだんの時間は60分のまま
+let g = gameMinutes_(oto, '2027-01', [c('2026-10'), c('2026-11')], '2027-01-01', cfg2);
+assert.strictEqual(g.minutes, 30);
+assert.strictEqual(g.base, 60);
+assert.strictEqual(gameMinutes_(oto, '2027-02', [c('2026-10'), c('2026-11'), c('2027-01')], '2027-02-01', cfg2).minutes, 60);
+// 連続が途切れたら数え直し
+assert.strictEqual(gameMinutes_(oto, '2027-01', [c('2026-10'), c('2026-12')], '2027-01-01', cfg2).minutes, 30);
+// 兄は昇格なし
+assert.strictEqual(gameMinutes_(ani, '2026-12', [], '2026-12-01', cfg2).minutes, 30);
+// 画面用の見込み
+s = summarize_(oto, '2026-11', [c('2026-10')], '2026-11-15', cfg2);
+assert.strictEqual(s.promoteMonthsLeft, 1);
+assert.strictEqual(s.nextMinutesIfDone, 60);
+assert.strictEqual(s.nextMinutesIfNot, 0);
+s = summarize_(oto, '2026-10', [], '2026-10-15', cfg2);
+assert.strictEqual(s.promoteMonthsLeft, 2);
+assert.strictEqual(s.nextMinutesIfDone, 30);
+
+// ---- 今月の進み具合（メール合計 + 保護者サポートの数への補正）----
+const prog = [rec('b', '2026-10-01', 'mail', 5), rec('b', '2026-10-02', 'mail', 4), rec('b', '2026-10-01', 'total', 61), rec('b', '2026-10-01', 'total', 58)];
+s = summarize_(oto, '2026-10', prog, '2026-10-03', cfg2);
+assert.strictEqual(s.lessons, 9);
+assert.strictEqual(s.total, 58); // 最後に入れた数が有効
+s = summarize_(oto, '2026-10', prog.concat(rec('b', '2026-10-01', 'adjust', -2)), '2026-10-03', cfg2);
+assert.strictEqual(s.lessons, 7);
+s = summarize_(oto, '2026-10', prog.concat(c('2026-10')), '2026-10-20', cfg2);
+assert.strictEqual(s.lessons, 58); // 完了済みなら必須数ぶん
 
 console.log('all tests passed');

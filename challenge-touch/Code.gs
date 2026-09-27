@@ -15,9 +15,12 @@ const CONFIG = {
   children: [
     // keywords: 通知メールの件名・本文に出てくる、その子の名前（「◯◯さん」の◯◯）
     // baseMinutes: 1日のゲーム時間（先月を達成していたときの時間）
+    // promoteTo / promoteAfterMonths: この月数つづけて完了したら、ふだんの時間を promoteTo 分に上げる
     { id: 'child1', name: 'お兄ちゃん', emoji: '🦖', keywords: ['（兄の名前）'], baseMinutes: 60 },
-    { id: 'child2', name: '弟', emoji: '🐰', keywords: ['（弟の名前）'], baseMinutes: 30 },
+    { id: 'child2', name: '弟', emoji: '🐰', keywords: ['（弟の名前）'], baseMinutes: 30, promoteTo: 60, promoteAfterMonths: 2 },
   ],
+  // 進研ゼミ「保護者サポート 学習状況」のURL（ブラウザで開いたときのURLを貼る）。管理画面にリンクが出る
+  progressPageUrl: '',
   // 「昨日のがんばり」メールを探す Gmail 検索クエリ
   gmailQuery: 'subject:昨日のがんばり newer_than:70d',
   // 週の目標: 月曜〜日曜のうち、この日数やっていれば残りの日は休んでもゲームOK
@@ -38,6 +41,8 @@ const REC_HEADERS = ['id', 'date', 'childId', 'lessons', 'source', 'note', 'crea
 //   late     : 月が変わってから完了した（期限切れなので達成扱いにしない）
 //   day      : 親が「今日やった」と手で登録した
 //   manual   : 親が手で「この月は完了」「完了を取り消し」した（lessons = 1 / -1）
+//   total    : 親が入れたその月の必須レッスン数（lessons = 回数。最後に入れたものが有効）
+//   adjust   : 親が保護者サポートの完了数に合わせたときの差分（lessons = 差分）
 
 // ===== セットアップ・トリガー =====
 
@@ -229,6 +234,15 @@ function parentAction(token, action, p) {
     const today = Utilities.formatDate(new Date(), TZ, 'yyyy-MM-dd');
     if (action === 'markDay') {
       addRecord_(today, p.childId, 0, 'day', '今日やったと手動登録');
+    } else if (action === 'setTotal') {
+      const total = parseInt(p.total, 10);
+      if (!(total >= 0)) throw new Error('必須レッスン数を数字で入れてください');
+      addRecord_(p.month + '-01', p.childId, total, 'total', '必須レッスン数');
+    } else if (action === 'setDone') {
+      const value = parseInt(p.value, 10);
+      if (!(value >= 0)) throw new Error('完了数を数字で入れてください');
+      const current = monthLessons_(readRecords_(), p.childId, p.month);
+      if (value !== current) addRecord_(p.month + '-01', p.childId, value - current, 'adjust', '保護者サポートの完了数 ' + value + ' に合わせる');
     } else if (action === 'markComplete') {
       addRecord_(p.month + '-01', p.childId, 1, 'manual', 'この月を完了扱いにする');
     } else if (action === 'unmarkComplete') {
@@ -363,13 +377,38 @@ function monthCompleted_(records, childId, month) {
  * ruleStartMonth より前の月の結果は問わない。
  */
 function gameMinutes_(child, month, records, today, cfg) {
-  const base = child.baseMinutes || 60;
+  // ruleStartMonth から前の月までを順に見て、「ふだんの時間」の昇格と連続完了数を出す
+  let base = child.baseMinutes || 60;
+  let streak = 0;
+  let prevJudged = false;
+  let prevDone = null;
   const prev = shiftMonth_(month, -1);
-  if (prev < cfg.ruleStartMonth) return { minutes: base, base, prevJudged: false, prevDone: null };
-  if (prev >= today.slice(0, 7)) return { minutes: base, base, prevJudged: false, prevDone: null };
-  const prevDone = monthCompleted_(records, child.id, prev);
-  const minutes = prevDone ? base : Math.max(cfg.minMinutes || 0, base - (cfg.penaltyMinutes || 0));
-  return { minutes, base, prevJudged: true, prevDone };
+  const lastClosed = shiftMonth_(today.slice(0, 7), -1); // 終わった月まで
+  for (let m = cfg.ruleStartMonth; m <= prev && m <= lastClosed; m = shiftMonth_(m, 1)) {
+    const done = monthCompleted_(records, child.id, m);
+    streak = done ? streak + 1 : 0;
+    if (child.promoteTo && base < child.promoteTo && streak >= (child.promoteAfterMonths || 2)) base = child.promoteTo;
+    if (m === prev) { prevJudged = true; prevDone = done; }
+  }
+  const minutes = prevJudged && !prevDone ? reduced_(base, cfg) : base;
+  return { minutes, base, prevJudged, prevDone, streak };
+}
+
+function reduced_(base, cfg) {
+  return Math.max(cfg.minMinutes || 0, base - (cfg.penaltyMinutes || 0));
+}
+
+/** その月のレッスン数（メールの合計 + 親の補正） */
+function monthLessons_(records, childId, month) {
+  return records
+    .filter(r => r.childId === childId && r.date.slice(0, 7) === month && (r.source === 'mail' || r.source === 'adjust'))
+    .reduce((s, r) => s + r.lessons, 0);
+}
+
+/** 親が入れたその月の必須レッスン数（未入力なら 0） */
+function monthTotal_(records, childId, month) {
+  const t = records.filter(r => r.childId === childId && r.date.slice(0, 7) === month && r.source === 'total');
+  return t.length ? t[t.length - 1].lessons : 0;
 }
 
 /** 1人・1か月分の状況 */
@@ -377,10 +416,12 @@ function summarize_(child, month, records, today, cfg) {
   const mine = records.filter(r => r.childId === child.id);
   const studyDaySet = new Set(mine.filter(r => r.source === 'mail' || r.source === 'day').map(r => r.date));
   const inMonth = mine.filter(r => r.date.slice(0, 7) === month);
-  const lessons = inMonth.filter(r => r.source === 'mail').reduce((s, r) => s + r.lessons, 0);
+  const total = monthTotal_(records, child.id, month);
   const studyDays = Array.from(new Set(inMonth
     .filter(r => r.source === 'mail' || r.source === 'day').map(r => r.date))).sort();
   const monthDone = monthCompleted_(records, child.id, month);
+  // 完了済みなら必須数ぶん終わっている。メール集計が上回るのは必須以外のレッスンも数えているため
+  const lessons = monthDone && total ? total : Math.max(0, monthLessons_(records, child.id, month));
   const isCurrent = month === today.slice(0, 7);
 
   // 今週（月曜はじまり）
@@ -409,18 +450,23 @@ function summarize_(child, month, records, today, cfg) {
 
   const game = gameMinutes_(child, month, records, today, cfg);
   const judgedThisMonth = month >= cfg.ruleStartMonth;
-  const reduced = Math.max(cfg.minMinutes || 0, game.base - (cfg.penaltyMinutes || 0));
+  // 昇格: 今月完了すれば連続月数が promoteAfterMonths に届くか
+  const need = child.promoteAfterMonths || 2;
+  const canPromote = !!child.promoteTo && game.base < child.promoteTo;
+  const promoteNext = canPromote && judgedThisMonth && game.streak + 1 >= need;
 
   return {
     childId: child.id, name: child.name, emoji: child.emoji || '⭐',
-    month, isCurrent, lessons, studyDays, daysInMonth: daysInMonth_(month), monthDone,
+    month, isCurrent, lessons, total, studyDays, daysInMonth: daysInMonth_(month), monthDone,
     week, weekDays, weeklyGoalDays: cfg.weeklyGoalDays, weekGoalMet, studiedToday,
     status: isCurrent ? status : null, reason: isCurrent ? reason : '',
     gameMinutes: game.minutes, baseMinutes: game.base, prevJudged: game.prevJudged, prevDone: game.prevDone,
     // 来月のゲーム時間の見込み（今月を完了したら / しなかったら）
-    nextMinutesIfDone: game.base,
-    nextMinutesIfNot: judgedThisMonth ? reduced : game.base,
+    nextMinutesIfDone: promoteNext ? child.promoteTo : game.base,
+    nextMinutesIfNot: judgedThisMonth ? reduced_(game.base, cfg) : game.base,
     judgedThisMonth,
+    promoteTo: canPromote ? child.promoteTo : 0,
+    promoteMonthsLeft: canPromote ? Math.max(1, need - (judgedThisMonth ? game.streak : 0)) : 0,
   };
 }
 
@@ -428,6 +474,7 @@ function buildDashboard_(records, month, today, cfg) {
   return {
     today, month,
     weeklyGoalDays: cfg.weeklyGoalDays, penaltyMinutes: cfg.penaltyMinutes, ruleStartMonth: cfg.ruleStartMonth,
+    progressPageUrl: cfg.progressPageUrl || '',
     unknownMails: records.filter(r => r.childId === 'unknown' && r.date.slice(0, 7) === month).length,
     children: cfg.children.map(c => summarize_(c, month, records, today, cfg)),
   };

@@ -78,6 +78,8 @@
     .week .studied { background: var(--primary); color: #fff; }
     .week .today { outline: 2.5px solid var(--warn); }
     .week .future { opacity: .45; }
+    .note.promote { background: var(--ok-soft); color: var(--ok); }
+    .btn-link { display: block; text-align: center; background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; margin-bottom: 14px; font-weight: 800; color: var(--primary); text-decoration: none; }
     .note { margin-top: 10px; font-size: .85rem; background: var(--bg); border-radius: 10px; padding: 8px 10px; }
     .loading { text-align: center; padding: 40px; color: var(--muted); }
   </style>
@@ -200,14 +202,29 @@
       if (!c.monthDone && c.judgedThisMonth) {
         h += '<p class="note">月末までに' + Number(c.month.slice(5)) + '月号を全部終えないと、来月は <b>1日 ' + c.nextMinutesIfNot + '分</b>（終えれば ' + c.nextMinutesIfDone + '分）</p>';
       }
+      if (c.promoteTo && c.judgedThisMonth) {
+        h += '<p class="note promote">🚀 あと <b>' + c.promoteMonthsLeft + 'か月</b> つづけて全部終えると、ゲームが <b>1日 ' + c.promoteTo + '分</b> になる！</p>';
+      }
     }
 
-    h += '<div class="sub">' + Number(c.month.slice(5)) + '月 ' + c.studyDays.length + '日 / レッスン ' + c.lessons + '回</div>';
+    const mLabel = Number(c.month.slice(5)) + '月';
+    if (c.total > 0) {
+      const pct = Math.min(100, c.lessons / c.total * 100);
+      h += '<div class="sub">' + mLabel + 'の進み具合 ' + c.lessons + ' / ' + c.total + ' レッスン</div>' +
+        '<div class="bar"><div class="fill" style="width:' + pct + '%"></div></div>' +
+        '<div class="legend"><span>やった日 ' + c.studyDays.length + '日</span><span>のこり ' + Math.max(0, c.total - c.lessons) + ' レッスン</span></div>';
+    } else {
+      h += '<div class="sub">' + mLabel + ' ' + c.studyDays.length + '日 / レッスン ' + c.lessons + '回</div>';
+    }
     h += calendar(c);
     h += '<p class="muted" style="margin-top:6px">★ = やった日（メールは翌日に届くので、今日の分は明日反映）</p>';
 
     if (!IS_KID) {
       h += '<div class="admin"><div class="muted">親の操作</div>' +
+        '<div class="row">必須レッスン数 <input type="number" min="0" id="total-' + c.childId + '" value="' + (c.total || '') + '">' +
+        '<button onclick="act(\'setTotal\',{childId:\'' + c.childId + '\',total:document.getElementById(\'total-' + c.childId + '\').value})">設定</button></div>' +
+        '<div class="row">保護者サポートの完了数 <input type="number" min="0" id="done-' + c.childId + '" value="' + c.lessons + '">' +
+        '<button onclick="act(\'setDone\',{childId:\'' + c.childId + '\',value:document.getElementById(\'done-' + c.childId + '\').value})">この数に合わせる</button></div>' +
         (c.isCurrent && !c.studiedToday ? '<div class="row"><button onclick="act(\'markDay\',{childId:\'' + c.childId + '\'})">今日やったのを確認した</button></div>' : '') +
         '<div class="row">' + (c.monthDone
           ? '<button onclick="act(\'unmarkComplete\',{childId:\'' + c.childId + '\'},\'この月を「未完了」に戻しますか？\')">この月を未完了に戻す</button>'
@@ -226,6 +243,9 @@
       h += '<span class="monthnav"><button onclick="load(shift(-1))">◀</button><button onclick="load(shift(1))">▶</button><button onclick="doLogout()">ログアウト</button></span>';
     }
     h += '</h1>';
+    if (!IS_KID && data.progressPageUrl) {
+      h += '<a class="btn-link" href="' + esc(data.progressPageUrl) + '" target="_blank" rel="noopener">📊 保護者サポートの学習状況をひらく</a>';
+    }
     if (!kids.length) h += '<div class="card">表示できる子どもがいません</div>';
     h += kids.map(childCard).join('');
     if (!IS_KID) {
