@@ -255,7 +255,9 @@
     if (!IS_KID) {
       h += '<div class="card"><div class="muted">ルール: 今日やった・今週' + data.weeklyGoalDays + '日達成・今月分完了 のどれかでゲームOK。' +
         '月末までに全部終わらなければ翌月は1日' + data.penaltyMinutes + '分減（' + monthLabel(data.ruleStartMonth) + 'の結果から）</div>' +
-        (data.unknownMails ? '<p class="muted" style="margin-top:6px">⚠️ 誰のものか判別できなかった通知メールが ' + data.unknownMails + ' 通あります（CONFIG.children の keywords を確認）</p>' : '') +
+        (data.unknownMails ? '<p class="muted" style="margin-top:6px">⚠️ 誰のものか判別できなかった通知メールが ' + data.unknownMails + ' 通あります。' +
+          'CONFIG.children の keywords に、下の件名の「◯◯さん」の◯◯を入れてください。</p>' +
+          '<ul class="muted" style="margin:4px 0 0 18px">' + (data.unknownSubjects || []).map(t => '<li>' + esc(t) + '</li>').join('') + '</ul>' : '') +
         '<div class="row"><button class="primary" onclick="act(\'sync\')">メールを今すぐ取り込む</button></div></div>';
     }
     document.getElementById('app').innerHTML = h;

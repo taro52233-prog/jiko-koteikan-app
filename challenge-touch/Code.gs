@@ -531,12 +531,23 @@ function summarize_(child, month, records, today, cfg) {
   };
 }
 
+/**
+ * 誰のものか判別できなかったメール。keywords を直したあとに同じメールが
+ * 子どもの記録として取り込まれていれば、もう数えない。
+ */
+function unknownMails_(records, month) {
+  const msgIdOf = r => r.id.split(':')[1];
+  const matched = new Set(records.filter(r => r.source === 'mail' && r.childId !== 'unknown').map(msgIdOf));
+  return records.filter(r => r.childId === 'unknown' && r.date.slice(0, 7) === month && !matched.has(msgIdOf(r)));
+}
+
 function buildDashboard_(records, month, today, cfg) {
   return {
     today, month,
     weeklyGoalDays: cfg.weeklyGoalDays, penaltyMinutes: cfg.penaltyMinutes, ruleStartMonth: cfg.ruleStartMonth,
     progressPageUrl: cfg.progressPageUrl || '',
-    unknownMails: records.filter(r => r.childId === 'unknown' && r.date.slice(0, 7) === month).length,
+    unknownMails: unknownMails_(records, month).length,
+    unknownSubjects: unknownMails_(records, month).slice(0, 3).map(r => r.note),
     children: cfg.children.map(c => summarize_(c, month, records, today, cfg)),
   };
 }

@@ -141,3 +141,15 @@ console.log('all tests passed');
   assert.strictEqual(buildReminder_([rec('a', '2026-10-15', 'complete', 0), rec('b', '2026-10-16', 'complete', 0)], '2026-10-20', cfg3), null);
   console.log('notification tests passed');
 }
+
+// ---- 判別できなかったメール: keywords を直して取り込み直されたら数えない ----
+{
+  const { buildDashboard_ } = ctx.module.exports;
+  const u = (id, childId) => ({ id: 'mail:' + id + ':' + childId, date: '2026-09-20', childId, lessons: 3, source: 'mail', note: '【昨日のがんばり】ソラさん' });
+  let d = buildDashboard_([u('m1', 'unknown'), u('m2', 'unknown')], '2026-09', '2026-09-27', cfg);
+  assert.strictEqual(d.unknownMails, 2);
+  assert.strictEqual(d.unknownSubjects[0], '【昨日のがんばり】ソラさん');
+  d = buildDashboard_([u('m1', 'unknown'), u('m2', 'unknown'), u('m1', 'a')], '2026-09', '2026-09-27', cfg);
+  assert.strictEqual(d.unknownMails, 1);
+  console.log('unknown mail tests passed');
+}
