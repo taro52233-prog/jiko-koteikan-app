@@ -21,6 +21,8 @@ const CONFIG = {
   ],
   // 進研ゼミ「保護者サポート 学習状況」のURL（ブラウザで開いたときのURLを貼る）。管理画面にリンクが出る
   progressPageUrl: '',
+  // 子ども用画面のウェブアプリURL（「全員」がアクセスできる2つ目のデプロイのURL）。空なら子ども用リンクは出さない
+  kidAppUrl: '',
   // 「昨日のがんばり」メールを探す Gmail 検索クエリ
   gmailQuery: 'subject:昨日のがんばり newer_than:70d',
   // 週の目標: 月曜〜日曜のうち、この日数やっていれば残りの日は休んでもゲームOK
@@ -53,11 +55,10 @@ const REC_HEADERS = ['id', 'date', 'childId', 'lessons', 'source', 'note', 'crea
 
 // ===== セットアップ・トリガー =====
 
-/** 初回に1回だけ手動実行する。スプレッドシート作成・パスワード発行・定期実行トリガー登録を行う。 */
+/** 初回に1回だけ手動実行する。スプレッドシート準備と定期実行トリガー登録を行う。 */
 function setup() {
   const props = PropertiesService.getScriptProperties();
   if (!props.getProperty('SHEET_ID')) props.setProperty('SHEET_ID', prepareSheet_().getId());
-  if (!props.getProperty('ADMIN_PASSWORD')) props.setProperty('ADMIN_PASSWORD', randomString_(10));
   kidTokens_(); // 子ども用リンクの合言葉を作っておく
   sheet_('records', REC_HEADERS);
   const handlers = ['syncFromGmail', 'sendMonthlyReport', 'sendReminder'];
@@ -69,8 +70,7 @@ function setup() {
   if (CONFIG.reminderDay) ScriptApp.newTrigger('sendReminder').timeBased().onMonthDay(CONFIG.reminderDay).atHour(18).create();
   syncFromGmail();
   Logger.log('セットアップ完了。スプレッドシート: ' + ss_().getUrl());
-  Logger.log('管理画面のパスワード: ' + props.getProperty('ADMIN_PASSWORD') +
-    '\n（変更は プロジェクトの設定 > スクリプト プロパティ の ADMIN_PASSWORD）');
+  Logger.log('管理画面は、ウェブアプリを「アクセスできるユーザー: 自分のみ」でデプロイして開いてください（パスワード不要）');
 }
 
 /**
@@ -205,9 +205,6 @@ function mailText_(m) {
 
 // ===== Webアプリ =====
 
-const SESSION_SECONDS = 6 * 60 * 60; // ログインの有効時間（CacheService の上限が6時間）
-const MAX_LOGIN_FAILURES = 10;       // これを超えて間違えると15分ログインできなくなる
-
 function doGet(e) {
   const t = HtmlService.createTemplateFromFile('Index');
   t.kidParam = (e && e.parameter && e.parameter.kid) || '';
@@ -216,36 +213,19 @@ function doGet(e) {
     .addMetaTag('viewport', 'width=device-width, initial-scale=1');
 }
 
-/** 管理画面ログイン。成功するとセッショントークンを返す */
-function login(password) {
-  const cache = CacheService.getScriptCache();
-  const failures = Number(cache.get('loginFailures') || 0);
-  if (failures >= MAX_LOGIN_FAILURES) throw new Error('パスワードを間違えすぎました。15分ほど待ってからやり直してください');
-  const expected = PropertiesService.getScriptProperties().getProperty('ADMIN_PASSWORD');
-  if (!expected) throw new Error('未セットアップです。先に setup() を実行してください');
-  if (String(password) !== expected) {
-    cache.put('loginFailures', String(failures + 1), 15 * 60);
-    throw new Error('パスワードがちがいます');
-  }
-  cache.remove('loginFailures');
-  const token = Utilities.getUuid() + Utilities.getUuid();
-  cache.put('session:' + token, '1', SESSION_SECONDS);
-  return token;
+/**
+ * 管理画面は、このスクリプトの持ち主の Google アカウントで開いたときだけ使える。
+ * 「自分のみ」でデプロイすれば Google のログインがそのまま鍵になるので、パスワードは要らない。
+ * 「全員」向けのデプロイ（子ども用）から開かれた場合は、見る人のアカウントが分からないので断る。
+ */
+function requireOwner_() {
+  const me = Session.getActiveUser().getEmail();
+  if (!me || me !== Session.getEffectiveUser().getEmail()) throw new Error('OWNER_ONLY');
 }
 
-function logout(token) {
-  if (token) CacheService.getScriptCache().remove('session:' + token);
-}
-
-function requireSession_(token) {
-  if (!token || !CacheService.getScriptCache().get('session:' + token)) {
-    throw new Error('LOGIN_REQUIRED');
-  }
-}
-
-/** 管理画面用データ（ログイン必須） */
-function getDashboard(token, month) {
-  requireSession_(token);
+/** 管理画面用データ（持ち主のみ） */
+function getDashboard(month) {
+  requireOwner_();
   return dashboard_(month);
 }
 
@@ -261,7 +241,7 @@ function getKidView(kidToken) {
 function dashboard_(month) {
   const today = Utilities.formatDate(new Date(), TZ, 'yyyy-MM-dd');
   const d = buildDashboard_(readRecords_(), month || today.slice(0, 7), today, CONFIG);
-  const url = ScriptApp.getService().getUrl();
+  const url = CONFIG.kidAppUrl;
   const tokens = kidTokens_();
   d.children.forEach(c => { c.kidUrl = url && tokens[c.childId] ? url + '?kid=' + tokens[c.childId] : ''; });
   return d;
@@ -290,9 +270,9 @@ function randomString_(len) {
   return s;
 }
 
-/** 管理画面の操作（ログイン必須） */
-function parentAction(token, action, p) {
-  requireSession_(token);
+/** 管理画面の操作（持ち主のみ） */
+function parentAction(action, p) {
+  requireOwner_();
   p = p || {};
   if (action !== 'sync' && !CONFIG.children.some(c => c.id === p.childId)) throw new Error('不明な子ども: ' + p.childId);
   if (action === 'resetKidLink') {

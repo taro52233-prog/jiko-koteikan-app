@@ -68,8 +68,6 @@
     .link { font-size: .75rem; word-break: break-all; color: var(--primary); }
     .toast { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); background: #1E293B; color: #fff; padding: 10px 18px; border-radius: 99px; font-size: .85rem; }
     .err { color: var(--ng); font-weight: 700; margin-top: 10px; font-size: .9rem; }
-    .login { max-width: 420px; margin: 40px auto; }
-    .login input { width: auto; }
     .minutes { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
     .minutes b { font-size: 1.4rem; }
     .verdict.todo { background: var(--warn-soft); color: var(--warn); }
@@ -96,12 +94,6 @@
   const IS_KID = !!KID;
   let data = null;
   let month = null;
-  let token = '';
-  try { token = sessionStorage.getItem('ct-session') || ''; } catch (e) { /* 使えない環境 */ }
-  function saveToken(t) {
-    token = t;
-    try { t ? sessionStorage.setItem('ct-session', t) : sessionStorage.removeItem('ct-session'); } catch (e) { /* 使えない環境 */ }
-  }
 
   function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
   function toast(msg) {
@@ -115,9 +107,13 @@
     document.getElementById('app').innerHTML = '<div class="card">' + esc(err.message) + '</div>';
   }
 
-  // セッション切れならログイン画面へ戻す
+  // 持ち主以外（または「全員」向けデプロイ）から管理画面を開いたとき
   function onServerError(err) {
-    if (/LOGIN_REQUIRED/.test(err.message)) { saveToken(''); renderLogin('ログインの有効期限が切れました。もう一度ログインしてください'); return; }
+    if (/OWNER_ONLY/.test(err.message)) {
+      showError(new Error('この管理画面は、このシステムを作った Google アカウントでだけ開けます。' +
+        'そのアカウントでログインしたブラウザで開いてください。'));
+      return;
+    }
     toast(err.message); if (data) render();
   }
 
@@ -127,33 +123,8 @@
         .withFailureHandler(showError).getKidView(KID);
       return;
     }
-    if (!token) { renderLogin(''); return; }
     google.script.run.withSuccessHandler(d => { data = d; month = d.month; render(); })
-      .withFailureHandler(onServerError).getDashboard(token, m || null);
-  }
-
-  function renderLogin(message) {
-    document.getElementById('app').innerHTML =
-      '<div class="card login"><h1>🔒 チャレンジタッチ 管理画面</h1>' +
-      '<form onsubmit="doLogin(event)"><label class="muted" for="pw">パスワード</label>' +
-      '<div class="row"><input type="password" id="pw" autocomplete="current-password" required style="flex:1">' +
-      '<button class="primary" type="submit">ログイン</button></div></form>' +
-      (message ? '<p class="err">' + esc(message) + '</p>' : '') + '</div>';
-    document.getElementById('pw').focus();
-  }
-
-  function doLogin(ev) {
-    ev.preventDefault();
-    const btn = ev.target.querySelector('button'); btn.disabled = true;
-    google.script.run
-      .withSuccessHandler(t => { saveToken(t); load(); })
-      .withFailureHandler(err => renderLogin(err.message))
-      .login(document.getElementById('pw').value);
-  }
-
-  function doLogout() {
-    google.script.run.logout(token);
-    saveToken(''); data = null; renderLogin('ログアウトしました');
+      .withFailureHandler(onServerError).getDashboard(m || null);
   }
 
   function act(action, payload, confirmMsg) {
@@ -162,7 +133,7 @@
     google.script.run
       .withSuccessHandler(d => { data = d; month = d.month; render(); toast('保存しました'); })
       .withFailureHandler(onServerError)
-      .parentAction(token, action, Object.assign({ month }, payload || {}));
+      .parentAction(action, Object.assign({ month }, payload || {}));
   }
 
   function calendar(c) {
@@ -248,7 +219,7 @@
     const kids = data.children;
     let h = '<h1><span>📘 チャレンジタッチ ' + monthLabel(month) + '</span>';
     if (!IS_KID) {
-      h += '<span class="monthnav"><button onclick="load(shift(-1))">◀</button><button onclick="load(shift(1))">▶</button><button onclick="doLogout()">ログアウト</button></span>';
+      h += '<span class="monthnav"><button onclick="load(shift(-1))">◀</button><button onclick="load(shift(1))">▶</button></span>';
     }
     h += '</h1>';
     if (!IS_KID && data.progressPageUrl) {
