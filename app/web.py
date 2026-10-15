@@ -13,7 +13,8 @@ from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.templating import Jinja2Templates
 
 from . import db, jobs
-from .compliance import EXPERIENCE_MARKER, check_draft, compose_reply
+from .compliance import EXPERIENCE_MARKER, check_draft, compose_reply, unsupported_numbers
+from .generator import polish_experience
 from .jobs import JST, Services
 
 log = logging.getLogger(__name__)
@@ -78,7 +79,8 @@ def create_app(svc: Services | None = None) -> FastAPI:
         if not ok:
             raise HTTPException(401, headers={"WWW-Authenticate": "Basic"})
 
-    def render_draft(request: Request, svc: Services, d, errors=(), warnings=None, message=None, form=None):
+    def render_draft(request: Request, svc: Services, d, errors=(), warnings=None, message=None, form=None,
+                     extra_warnings=()):
         form = form or {}
         hook = form.get("hook_text", d["hook_text"])
         body = form.get("comment_body", d["comment_body"])
@@ -86,9 +88,11 @@ def create_app(svc: Services | None = None) -> FastAPI:
         if warnings is None:
             refs = [r["text"] for r in db.recent_reference_posts(svc.conn, d["keyword"], limit=50)]
             _, warnings = check_draft(hook, body, d["product_url"], used, refs)
+        warnings = [*warnings, *extra_warnings]
         return templates.TemplateResponse(request, "draft.html", {
             "d": d, "hook_text": hook, "comment_body": body, "used_confirmed": used,
             "scheduled_at": form.get("scheduled_at", to_local_input(d["scheduled_at"])),
+            "experience_memo": form.get("experience_memo", d["experience_memo"] or ""),
             "reply_preview": compose_reply(body, d["product_url"]),
             "errors": errors, "warnings": warnings, "message": message, "marker": EXPERIENCE_MARKER,
             "dry_run": svc.settings.dry_run,
@@ -113,7 +117,8 @@ def create_app(svc: Services | None = None) -> FastAPI:
     @app.post("/drafts/{draft_id}", response_class=HTMLResponse, dependencies=[Depends(auth)])
     def update_draft(draft_id: int, request: Request, svc: Services = Depends(services),
                      action: str = Form(...), hook_text: str = Form(""), comment_body: str = Form(""),
-                     used_confirmed: bool = Form(False), scheduled_at: str = Form("")):
+                     used_confirmed: bool = Form(False), scheduled_at: str = Form(""),
+                     experience_memo: str = Form("")):
         d = db.get_draft(svc.conn, draft_id) or _not_found()
         if d["status"] not in ("pending", "failed", "approved"):
             raise HTTPException(409, "この下書きは編集できません")
@@ -123,10 +128,13 @@ def create_app(svc: Services | None = None) -> FastAPI:
             return RedirectResponse("/?msg=" + quote("却下しました"), status_code=303)
 
         form = {"hook_text": hook_text, "comment_body": comment_body, "used_confirmed": used_confirmed,
-                "scheduled_at": scheduled_at}
+                "scheduled_at": scheduled_at, "experience_memo": experience_memo}
         db.update_draft(svc.conn, draft_id, hook_text=hook_text, comment_body=comment_body,
-                        used_confirmed=int(used_confirmed))
+                        used_confirmed=int(used_confirmed), experience_memo=experience_memo)
         d = db.get_draft(svc.conn, draft_id)
+
+        if action == "polish":
+            return polish(request, svc, d, form)
 
         if action == "approve":
             refs = [r["text"] for r in db.recent_reference_posts(svc.conn, d["keyword"], limit=50)]
@@ -141,6 +149,29 @@ def create_app(svc: Services | None = None) -> FastAPI:
             return RedirectResponse("/?msg=" + quote("承認しました"), status_code=303)
 
         return render_draft(request, svc, d, message="保存しました", form=form)
+
+    def polish(request: Request, svc: Services, d, form: dict):
+        if not form["experience_memo"].strip():
+            return render_draft(request, svc, d, errors=["体験メモを書いてから押してください"], form=form)
+        if svc.claude is None:
+            return render_draft(request, svc, d, errors=["ANTHROPIC_API_KEY が未設定です"], form=form)
+        try:
+            result = polish_experience(svc.claude, svc.settings.claude_model, form["hook_text"],
+                                       form["comment_body"], form["experience_memo"], d["product_name"])
+        except Exception as e:
+            log.exception("polish failed for draft %s", d["id"])
+            return render_draft(request, svc, d, errors=[f"文章化に失敗しました: {e}"], form=form)
+
+        # Numbers are the easiest embellishment to spot mechanically; anything else is on the human.
+        added = unsupported_numbers(result.comment_body, [form["experience_memo"], form["comment_body"],
+                                                          d["product_name"]])
+        extra = [f"メモにない数字が入っています: {'、'.join(added)}（事実か確認してください）"] if added else []
+        if result.note:
+            extra.append(f"AIより: {result.note}")
+        db.update_draft(svc.conn, d["id"], comment_body=result.comment_body)
+        form = {**form, "comment_body": result.comment_body}
+        return render_draft(request, svc, db.get_draft(svc.conn, d["id"]), form=form, extra_warnings=extra,
+                            message="体験メモから文章を作りました。事実と違う部分や盛りすぎがないか確認してください")
 
     @app.post("/drafts/{draft_id}/unapprove", dependencies=[Depends(auth)])
     def unapprove(draft_id: int, svc: Services = Depends(services)):

@@ -27,6 +27,7 @@ CREATE TABLE IF NOT EXISTS drafts (
     affiliate_rate REAL,
     status TEXT NOT NULL DEFAULT 'pending',
     used_confirmed INTEGER NOT NULL DEFAULT 0,
+    experience_memo TEXT,
     scheduled_at TEXT,
     published_post_id TEXT,
     published_reply_id TEXT,
@@ -56,7 +57,16 @@ def connect(path: str) -> sqlite3.Connection:
     conn = sqlite3.connect(path, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     conn.executescript(SCHEMA)
+    _migrate(conn)
     return conn
+
+
+def _migrate(conn: sqlite3.Connection) -> None:
+    """Add columns introduced after a database was first created."""
+    cols = {r["name"] for r in conn.execute("PRAGMA table_info(drafts)")}
+    if "experience_memo" not in cols:
+        conn.execute("ALTER TABLE drafts ADD COLUMN experience_memo TEXT")
+        conn.commit()
 
 
 def save_reference_posts(conn, keyword: str, posts: list[dict]) -> int:

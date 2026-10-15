@@ -57,6 +57,51 @@ def build_user_prompt(keyword: str, reference_texts: list[str], products: list[P
     )
 
 
+POLISH_SYSTEM_PROMPT = f"""あなたはThreads投稿の文章を整えるアシスタントです。
+投稿者が書いた「体験メモ」（箇条書きや話し言葉）を、コメント欄の本文に自然に組み込んで仕上げます。
+
+守ること:
+- 本文中の「{EXPERIENCE_MARKER}」を、体験メモの内容に置き換える。必要なら前後の文も自然につながるよう整える。
+- 体験メモに書かれた事実だけを使う。メモにない数字・期間・回数・効果・子どもの反応・感想を足さない。
+  メモより効果を強めた表現（「ちょっと楽」→「劇的に楽」など）にもしない。
+- 商品の説明は元の本文にある内容の範囲にとどめる。
+- 口調は投稿者のメモに合わせる（話し言葉なら話し言葉で）。
+- 「絶対」「必ず」「最安」、健康・ダイエット効果の断定は使わない。
+- PR表記とリンクは書かない（システムが自動で付ける）。全体で200文字以内。
+- 体験メモが空、または商品と関係ない内容で書けない場合は、本文を変えずに返し、noteに理由を書く。"""
+
+
+class PolishedComment(BaseModel):
+    comment_body: str
+    note: str = ""
+
+
+def polish_experience(client: anthropic.Anthropic, model: str, hook_text: str, comment_body: str,
+                      memo: str, product_name: str) -> PolishedComment:
+    """Turn the user's rough experience memo into the final comment text, without adding facts."""
+    user = (
+        f"<product>{product_name}</product>\n\n"
+        f"<hook_post>\n{hook_text}\n</hook_post>\n\n"
+        f"<comment_body>\n{comment_body}\n</comment_body>\n\n"
+        f"<experience_memo>\n{memo}\n</experience_memo>"
+    )
+    response = client.beta.messages.parse(
+        model=model,
+        max_tokens=4000,
+        output_config={"effort": "low"},
+        betas=["server-side-fallback-2026-07-01"],
+        fallbacks="default",
+        system=POLISH_SYSTEM_PROMPT,
+        messages=[{"role": "user", "content": user}],
+        output_format=PolishedComment,
+    )
+    if response.stop_reason == "refusal":
+        raise GenerationError(f"Claudeが生成を断りました: {response.stop_details}")
+    if response.stop_reason == "max_tokens" or response.parsed_output is None:
+        raise GenerationError(f"文章を解析できませんでした (stop_reason={response.stop_reason})")
+    return response.parsed_output
+
+
 def generate_drafts(client: anthropic.Anthropic, model: str, keyword: str, reference_texts: list[str],
                     products: list[Product], count: int) -> list[DraftIdea]:
     if not products:

@@ -7,9 +7,9 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app import db, jobs
-from app.compliance import EXPERIENCE_MARKER, PR_LABEL, check_draft, compose_reply
+from app.compliance import EXPERIENCE_MARKER, PR_LABEL, check_draft, compose_reply, unsupported_numbers
 from app.config import Settings
-from app.generator import DraftBatch, DraftIdea, GenerationError, generate_drafts
+from app.generator import DraftBatch, DraftIdea, GenerationError, PolishedComment, generate_drafts
 from app.rakuten_client import Product, RakutenClient
 from app.threads_client import ThreadsClient, ThreadsError
 from app.web import create_app
@@ -203,3 +203,44 @@ def test_publish_retries_only_reply_when_parent_exists(svc):
     jobs.publish_due(svc, now=datetime(2099, 1, 1, tzinfo=timezone.utc))
     assert calls == ["parent1"]
     assert db.get_draft(svc.conn, d)["status"] == "published"
+
+
+# ---------- experience memo -> text ----------
+
+def test_unsupported_numbers_normalizes_full_width():
+    assert unsupported_numbers("掃除が３分で終わる、2歳の娘", ["2歳の娘"]) == ["3"]
+    assert unsupported_numbers("2歳の娘", ["２歳"]) == []
+
+
+def test_polish_rewrites_body_and_flags_invented_numbers(svc):
+    polished = PolishedComment(comment_body="2歳の娘がこぼしても、拭く時間が半分の5分に。洗濯機で洗えるのも助かる")
+    svc.claude = FakeClaude(SimpleNamespace(stop_reason="end_turn", parsed_output=polished))
+    client = web(svc)
+    d = make_draft(svc)
+    r = client.post(f"/drafts/{d}", data={"action": "polish", "hook_text": "フック",
+                                          "comment_body": f"大判マット。{EXPERIENCE_MARKER}",
+                                          "experience_memo": "2歳の娘。拭くのが楽。洗濯機で洗える"})
+    assert r.status_code == 200
+    assert "メモにない数字が入っています: 5" in r.text
+    row = db.get_draft(svc.conn, d)
+    assert row["comment_body"] == polished.comment_body
+    assert row["experience_memo"] == "2歳の娘。拭くのが楽。洗濯機で洗える"
+    assert row["status"] == "pending"  # polishing never approves by itself
+    assert "<experience_memo>" in svc.claude.kwargs["messages"][0]["content"]
+
+
+def test_polish_requires_memo(svc):
+    client = web(svc)
+    d = make_draft(svc)
+    r = client.post(f"/drafts/{d}", data={"action": "polish", "hook_text": "フック", "comment_body": "本文"})
+    assert "体験メモを書いてから" in r.text
+
+
+def test_migration_adds_memo_column(tmp_path):
+    import sqlite3
+    path = tmp_path / "old.db"
+    old = sqlite3.connect(path)
+    old.execute("CREATE TABLE drafts (id INTEGER PRIMARY KEY, keyword TEXT)")
+    old.commit(); old.close()
+    cols = {r["name"] for r in db.connect(str(path)).execute("PRAGMA table_info(drafts)")}
+    assert "experience_memo" in cols

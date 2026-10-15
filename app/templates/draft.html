@@ -26,6 +26,13 @@
   <textarea id="body" name="comment_body">{{ comment_body }}</textarea>
   <div class="muted">{{ marker }} は自分の実体験に書き換えてください。PR表記とリンクは自動で付きます。</div>
 
+  <label for="memo">体験メモ（箇条書き・話し言葉でOK）</label>
+  <textarea id="memo" name="experience_memo" placeholder="例: 2歳の娘、毎回床にこぼす。これ敷いてから拭くのが楽。洗濯機で洗えるのがいい">{{ experience_memo }}</textarea>
+  <div class="row" style="margin-top:8px">
+    <button name="action" value="polish">メモから文章を作る</button>
+  </div>
+  <div class="muted">メモの内容だけを使ってコメント本文に組み込みます。メモにない事実は足しません。</div>
+
   <label>コメント欄の投稿プレビュー</label>
   <div class="card pre">{{ reply_preview }}</div>
 

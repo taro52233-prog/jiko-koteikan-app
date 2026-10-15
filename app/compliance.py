@@ -1,6 +1,7 @@
 """Pre-publish checks. Errors block approval; warnings are shown for a human to judge."""
 
 import re
+import unicodedata
 from difflib import SequenceMatcher
 
 # The generator leaves this marker where only the human can write the truth.
@@ -13,6 +14,7 @@ RISKY_PHRASES = ("絶対", "必ず", "100%", "１００％", "最安", "日本�
                  "痩せる", "痩せた", "効く", "効果抜群", "副作用なし")
 SIMILARITY_WARN_RATIO = 0.6
 URL_RE = re.compile(r"https?://")
+NUMBER_RE = re.compile(r"[0-9０-９]+(?:[.．][0-9０-９]+)?")
 
 
 def compose_reply(comment_body: str, affiliate_url: str) -> str:
@@ -50,3 +52,9 @@ def check_draft(hook_text: str, comment_body: str, affiliate_url: str, used_conf
             break
 
     return errors, warnings
+
+
+def unsupported_numbers(text: str, sources: list[str]) -> list[str]:
+    """Numbers in text that appear in none of the sources, i.e. ones the AI may have made up."""
+    known = {n for src in sources for n in NUMBER_RE.findall(unicodedata.normalize("NFKC", src))}
+    return sorted({n for n in NUMBER_RE.findall(unicodedata.normalize("NFKC", text)) if n not in known})
