@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block content %}
+<p><a href="/">← 一覧へ</a></p>
+<h1>下書き #{{ d.id }} <span class="muted">（{{ d.status }}）</span></h1>
+
+{% if message %}<div class="card">{{ message }}</div>{% endif %}
+{% if errors %}<ul class="errors">{% for e in errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
+{% if warnings %}<ul class="warnings">{% for w in warnings %}<li>{{ w }}</li>{% endfor %}</ul>{% endif %}
+{% if d.error %}<div class="errors">{{ d.error }}</div>{% endif %}
+
+<div class="card">
+  <div><strong>{{ d.product_name }}</strong></div>
+  <div class="muted">{{ d.product_price }}円 ／ 料率{{ d.affiliate_rate }}% ／ <a href="{{ d.product_url }}" target="_blank" rel="noopener">商品ページ</a></div>
+  {% if d.rationale %}<div class="muted">AIのメモ: {{ d.rationale }}</div>{% endif %}
+</div>
+
+{% if d.status == "approved" %}
+<form method="post" action="/drafts/{{ d.id }}/unapprove"><button>承認を取り消して編集する</button></form>
+{% else %}
+<form method="post">
+  <label for="hook">親投稿（リンクなし）</label>
+  <textarea id="hook" name="hook_text">{{ hook_text }}</textarea>
+  <div class="muted">{{ hook_text|length }} / 500文字</div>
+
+  <label for="body">コメント欄の本文</label>
+  <textarea id="body" name="comment_body">{{ comment_body }}</textarea>
+  <div class="muted">{{ marker }} は自分の実体験に書き換えてください。PR表記とリンクは自動で付きます。</div>
+
+  <label>コメント欄の投稿プレビュー</label>
+  <div class="card pre">{{ reply_preview }}</div>
+
+  <label for="when">投稿日時（空欄なら次の投稿枠）</label>
+  <input id="when" type="datetime-local" name="scheduled_at" value="{{ scheduled_at }}">
+
+  <label class="check"><input type="checkbox" name="used_confirmed" value="true" {% if used_confirmed %}checked{% endif %}>
+    この商品を実際に使ったことがあり、体験の部分は事実です</label>
+
+  <div class="row">
+    <button class="primary" name="action" value="approve">承認して予約</button>
+    <button name="action" value="save">保存のみ</button>
+    <button name="action" value="reject">却下</button>
+  </div>
+</form>
+{% endif %}
+{% endblock %}

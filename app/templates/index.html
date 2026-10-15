@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>投稿承認</h1>
+{% if msg %}<div class="card">{{ msg }}</div>{% endif %}
+
+<h2>確認待ち（{{ pending|length }}）</h2>
+{% for d in pending %}
+  <div class="card">
+    <a href="/drafts/{{ d.id }}"><div class="pre">{{ d.hook_text[:90] }}{% if d.hook_text|length > 90 %}…{% endif %}</div></a>
+    <div class="muted">{{ d.keyword }} ／ {{ d.product_name[:40] }} ／ 料率{{ d.affiliate_rate }}%</div>
+  </div>
+{% else %}
+  <p class="muted">確認待ちはありません。</p>
+{% endfor %}
+
+{% if failed %}
+<h2>失敗（{{ failed|length }}）</h2>
+{% for d in failed %}
+  <div class="card">
+    <a href="/drafts/{{ d.id }}"><div class="pre">{{ d.hook_text[:60] }}…</div></a>
+    <div class="muted">{{ d.error }}</div>
+  </div>
+{% endfor %}
+{% endif %}
+
+<h2>予約済み（{{ approved|length }}）</h2>
+{% for d in approved %}
+  <div class="card">
+    <a href="/drafts/{{ d.id }}"><div class="pre">{{ d.hook_text[:60] }}…</div></a>
+    <div class="muted">{{ d.scheduled_at|local }} に投稿予定</div>
+  </div>
+{% else %}
+  <p class="muted">予約はありません。</p>
+{% endfor %}
+
+<h2>投稿済み</h2>
+{% for d, m in published %}
+  <div class="card">
+    <div class="pre">{{ d.hook_text[:60] }}…</div>
+    <div class="muted">{{ d.updated_at|local }}
+      {% if m %} ／ 表示 {{ m.views or 0 }} ・いいね {{ m.likes or 0 }} ・返信 {{ m.replies or 0 }}{% endif %}</div>
+  </div>
+{% else %}
+  <p class="muted">まだありません。</p>
+{% endfor %}
+
+<h2>手動実行</h2>
+<div class="row">
+  {% for name, label in [("collect","バズ投稿収集"),("generate","下書き生成"),("publish","予約分を投稿"),("metrics","数値取得")] %}
+  <form method="post" action="/jobs/{{ name }}" class="inline"><button>{{ label }}</button></form>
+  {% endfor %}
+</div>
+{% endblock %}

@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>投稿承認</title>
+<style>
+  :root { --bg:#fafaf8; --fg:#1d1d1b; --muted:#6b6b66; --line:#e2e1dc; --card:#fff; --accent:#1f6f5c;
+          --err:#b3261e; --warn:#8a5a00; --warnbg:#fff6e0; --errbg:#fdecea; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#161615; --fg:#ecebe6; --muted:#a3a29c; --line:#34332f; --card:#1f1f1d; --accent:#5fbfa5;
+            --err:#f2b8b5; --warn:#f0c674; --warnbg:#3a2f15; --errbg:#3b1d1b; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.6 system-ui, sans-serif; }
+  main { max-width: 680px; margin: 0 auto; padding: 16px; }
+  h1 { font-size: 1.25rem; margin: 0 0 12px; } h2 { font-size: 1.05rem; margin: 24px 0 8px; }
+  a { color: var(--accent); }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:12px; margin-bottom:10px; }
+  .muted { color:var(--muted); font-size:.875rem; }
+  .pre { white-space: pre-wrap; word-break: break-word; }
+  .banner { padding:8px 12px; border-radius:8px; margin-bottom:12px; background:var(--warnbg); color:var(--warn); }
+  .errors { background:var(--errbg); color:var(--err); border-radius:8px; padding:8px 12px 8px 28px; }
+  .warnings { background:var(--warnbg); color:var(--warn); border-radius:8px; padding:8px 12px 8px 28px; }
+  textarea, input[type=datetime-local] { width:100%; font:inherit; padding:8px; border:1px solid var(--line);
+    border-radius:8px; background:var(--card); color:var(--fg); }
+  textarea { min-height: 9em; }
+  label { display:block; font-weight:600; margin:12px 0 4px; }
+  .check { font-weight:normal; display:flex; gap:8px; align-items:flex-start; }
+  .row { display:flex; gap:8px; flex-wrap:wrap; margin-top:16px; }
+  button { font:inherit; padding:10px 16px; border-radius:8px; border:1px solid var(--line);
+    background:var(--card); color:var(--fg); cursor:pointer; }
+  button.primary { background:var(--accent); color:#fff; border-color:var(--accent); }
+  .inline { display:inline; }
+</style>
+</head>
+<body><main>
+{% if dry_run %}<div class="banner">DRY_RUN中: 実際には投稿されません</div>{% endif %}
+{% block content %}{% endblock %}
+</main></body>
+</html>
