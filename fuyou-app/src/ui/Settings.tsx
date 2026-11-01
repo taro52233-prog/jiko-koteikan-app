@@ -1,8 +1,10 @@
+import { useState } from 'react';
 import type { RuleSet } from '../rules/types';
 import { Group } from './controls';
 
 export function Settings(props: { rules: RuleSet; onEditAnswers: () => void; onClear: () => void }) {
   const m = props.rules.meta;
+  const [confirming, setConfirming] = useState(false);
   return (
     <div className="page">
       <header className="page-head">
@@ -45,17 +47,22 @@ export function Settings(props: { rules: RuleSet; onEditAnswers: () => void; onC
         <p>入力した内容はこの端末の中にだけ保存され、外部には送信されません。</p>
       </section>
 
-      <Group>
-        <button
-          type="button"
-          className="row row-button danger"
-          onClick={() => {
-            if (window.confirm('入力した回答と給与の記録をすべて消去します。元に戻せません。')) props.onClear();
-          }}
-        >
-          <span className="row-label">すべてのデータを消去</span>
-        </button>
-      </Group>
+      {confirming ? (
+        <Group footer="入力した回答と給与の記録をすべて消去します。元に戻せません。">
+          <button type="button" className="row row-button danger" onClick={props.onClear}>
+            <span className="row-label">消去する</span>
+          </button>
+          <button type="button" className="row row-button" onClick={() => setConfirming(false)}>
+            <span className="row-label">やめる</span>
+          </button>
+        </Group>
+      ) : (
+        <Group>
+          <button type="button" className="row row-button danger" onClick={() => setConfirming(true)}>
+            <span className="row-label">すべてのデータを消去</span>
+          </button>
+        </Group>
+      )}
     </div>
   );
 }
