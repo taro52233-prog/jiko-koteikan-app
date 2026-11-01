@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { evaluate } from './engine/evaluate';
 import type { Answers, Records } from './engine/types';
 import { getRules, supportedYears } from './rules';
@@ -21,6 +21,7 @@ function Welcome(props: { onStart: () => void; unreviewed: boolean }) {
   return (
     <div className="welcome">
       <div className="welcome-body">
+        <img className="welcome-icon" src="./icon.svg" alt="" width="72" height="72" />
         <p className="eyebrow">{APP_NAME}</p>
         <h1 className="welcome-title">
           扶養の範囲で、
@@ -57,39 +58,54 @@ function Welcome(props: { onStart: () => void; unreviewed: boolean }) {
   );
 }
 
+function TabIcon({ id, active }: { id: Tab; active: boolean }) {
+  const sw = 1.8;
+  if (id === 'status') {
+    return (
+      <svg viewBox="0 0 28 28" width="27" height="27" aria-hidden="true">
+        <circle cx="14" cy="14" r="9.5" fill="none" stroke="currentColor" strokeWidth={active ? 3.2 : sw} opacity="0.3" />
+        <path d="M14 4.5a9.5 9.5 0 1 1-8.2 14.3" fill="none" stroke="currentColor" strokeWidth={active ? 3.2 : sw} strokeLinecap="round" />
+      </svg>
+    );
+  }
+  if (id === 'records') {
+    return (
+      <svg viewBox="0 0 28 28" width="27" height="27" aria-hidden="true">
+        {active ? (
+          <>
+            <rect x="5" y="15" width="4.5" height="8" rx="1.5" fill="currentColor" />
+            <rect x="11.75" y="9" width="4.5" height="14" rx="1.5" fill="currentColor" />
+            <rect x="18.5" y="5" width="4.5" height="18" rx="1.5" fill="currentColor" />
+          </>
+        ) : (
+          <>
+            <rect x="5.9" y="15.9" width="2.7" height="6.2" rx="1" fill="none" stroke="currentColor" strokeWidth={sw} />
+            <rect x="12.65" y="9.9" width="2.7" height="12.2" rx="1" fill="none" stroke="currentColor" strokeWidth={sw} />
+            <rect x="19.4" y="5.9" width="2.7" height="16.2" rx="1" fill="none" stroke="currentColor" strokeWidth={sw} />
+          </>
+        )}
+      </svg>
+    );
+  }
+  return (
+    <svg viewBox="0 0 28 28" width="27" height="27" aria-hidden="true">
+      <path d="M5 8h18M5 14h18M5 20h18" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" />
+      {[
+        [10, 8],
+        [18, 14],
+        [9, 20],
+      ].map(([cx, cy]) => (
+        <circle key={cy} cx={cx} cy={cy} r="2.6" fill={active ? 'currentColor' : 'var(--bar-bg)'} stroke="currentColor" strokeWidth={sw} />
+      ))}
+    </svg>
+  );
+}
+
 function TabBar(props: { tab: Tab; onChange: (t: Tab) => void }) {
-  const items: { id: Tab; label: string; icon: ReactNode }[] = [
-    {
-      id: 'status',
-      label: '状況',
-      icon: (
-        <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true">
-          <path d="M4 19h16M7 15v-4M12 15V7M17 15v-6" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-        </svg>
-      ),
-    },
-    {
-      id: 'records',
-      label: '給与の記録',
-      icon: (
-        <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true">
-          <rect x="5" y="4" width="14" height="16" rx="2.5" fill="none" stroke="currentColor" strokeWidth="1.8" />
-          <path d="M9 9h6M9 13h6M9 17h3" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-        </svg>
-      ),
-    },
-    {
-      id: 'settings',
-      label: '設定',
-      icon: (
-        <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true">
-          <path d="M5 7h14M5 12h14M5 17h14" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-          <circle cx="9" cy="7" r="2" fill="var(--bg-elevated)" stroke="currentColor" strokeWidth="1.8" />
-          <circle cx="15" cy="12" r="2" fill="var(--bg-elevated)" stroke="currentColor" strokeWidth="1.8" />
-          <circle cx="8" cy="17" r="2" fill="var(--bg-elevated)" stroke="currentColor" strokeWidth="1.8" />
-        </svg>
-      ),
-    },
+  const items: { id: Tab; label: string }[] = [
+    { id: 'status', label: '状況' },
+    { id: 'records', label: '記録' },
+    { id: 'settings', label: '設定' },
   ];
   return (
     <nav className="tabbar" aria-label="メインメニュー">
@@ -101,7 +117,7 @@ function TabBar(props: { tab: Tab; onChange: (t: Tab) => void }) {
           aria-current={props.tab === i.id ? 'page' : undefined}
           onClick={() => props.onChange(i.id)}
         >
-          {i.icon}
+          <TabIcon id={i.id} active={props.tab === i.id} />
           <span>{i.label}</span>
         </button>
       ))}
@@ -116,6 +132,7 @@ export function App() {
   );
   const [mode, setMode] = useState<'welcome' | 'flow' | 'app'>(data.answers ? 'app' : 'welcome');
   const [tab, setTab] = useState<Tab>('status');
+  const [openWall, setOpenWall] = useState<string | null>(null);
 
   useEffect(() => {
     save(data);
@@ -153,7 +170,14 @@ export function App() {
   return (
     <div className="shell">
       {tab === 'status' && (
-        <Results evaluation={evaluation} rules={rules} onEditAnswers={() => setMode('flow')} onGoRecords={() => setTab('records')} />
+        <Results
+          evaluation={evaluation}
+          rules={rules}
+          openId={openWall}
+          onOpen={setOpenWall}
+          onEditAnswers={() => setMode('flow')}
+          onGoRecords={() => setTab('records')}
+        />
       )}
       {tab === 'records' && (
         <RecordsView
@@ -167,6 +191,7 @@ export function App() {
       {tab === 'settings' && (
         <Settings
           rules={rules}
+          answers={data.answers}
           onEditAnswers={() => setMode('flow')}
           onClear={() => {
             clearAll();
@@ -175,7 +200,14 @@ export function App() {
           }}
         />
       )}
-      <TabBar tab={tab} onChange={setTab} />
+      <TabBar
+        tab={tab}
+        onChange={(t) => {
+          setOpenWall(null);
+          if (t === tab) window.scrollTo({ top: 0, behavior: 'smooth' });
+          setTab(t);
+        }}
+      />
     </div>
   );
 }

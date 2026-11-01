@@ -1,6 +1,6 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import type { Answers } from '../engine/types';
-import { ChoiceList, Group, NumberField } from './controls';
+import { BackChevron, ChoiceList, Group, NumberField } from './controls';
 
 export type Draft = Partial<Answers>;
 
@@ -38,7 +38,7 @@ const steps: Step[] = [
     valid: (d) => typeof d.age === 'number' && d.age >= 15 && d.age <= 110,
     render: (d, set) => (
       <Group>
-        <NumberField label="年齢" unit="歳" value={d.age ?? null} onChange={(v) => set({ age: v === null ? undefined : Math.floor(v) })} placeholder="例 42" autoFocus />
+        <NumberField label="年齢" unit="歳" value={d.age ?? null} onChange={(v) => set({ age: v === null ? undefined : Math.floor(v) })} placeholder="例 42" />
       </Group>
     ),
   },
@@ -88,7 +88,7 @@ const steps: Step[] = [
     valid: () => true,
     render: (d, set) => (
       <Group footer="給与収入だけの場合として計算します。">
-        <NumberField label="年収" unit="万円" value={man(d.supporterSalary)} onChange={(v) => set({ supporterSalary: fromMan(v) })} placeholder="例 550" decimal autoFocus />
+        <NumberField label="年収" unit="万円" value={man(d.supporterSalary)} onChange={(v) => set({ supporterSalary: fromMan(v) })} placeholder="例 550" decimal />
       </Group>
     ),
   },
@@ -182,7 +182,7 @@ const steps: Step[] = [
     valid: (d) => (d.hourlyWage ?? 0) > 0,
     render: (d, set) => (
       <Group>
-        <NumberField label="時給" unit="円" value={d.hourlyWage ?? null} onChange={(v) => set({ hourlyWage: v ?? undefined })} placeholder="例 1,200" autoFocus />
+        <NumberField label="時給" unit="円" value={d.hourlyWage ?? null} onChange={(v) => set({ hourlyWage: v ?? undefined })} placeholder="例 1,200" step={10} />
       </Group>
     ),
   },
@@ -193,8 +193,8 @@ const steps: Step[] = [
     valid: (d) => (d.weeklyHours ?? 0) > 0 && (d.weeklyHours ?? 0) <= 80,
     render: (d, set) => (
       <Group footer="月の日数がわからなければ空欄のままで構いません。">
-        <NumberField label="週の時間" unit="時間" value={d.weeklyHours ?? null} onChange={(v) => set({ weeklyHours: v ?? undefined })} placeholder="例 20" decimal autoFocus />
-        <NumberField label="月の日数" unit="日" value={d.monthlyDays ?? null} onChange={(v) => set({ monthlyDays: v })} placeholder="例 12" />
+        <NumberField label="週の時間" unit="時間" value={d.weeklyHours ?? null} onChange={(v) => set({ weeklyHours: v ?? undefined })} placeholder="例 20" decimal step={0.5} max={80} />
+        <NumberField label="月の日数" unit="日" value={d.monthlyDays ?? null} onChange={(v) => set({ monthlyDays: v })} placeholder="例 12" step={1} max={31} />
       </Group>
     ),
   },
@@ -206,8 +206,8 @@ const steps: Step[] = [
     valid: (d) => (d.fulltimeWeeklyHours ?? 0) > 0,
     render: (d, set) => (
       <Group footer="わからなければ週40時間のままで進めてください。">
-        <NumberField label="週の時間" unit="時間" value={d.fulltimeWeeklyHours ?? null} onChange={(v) => set({ fulltimeWeeklyHours: v })} decimal />
-        <NumberField label="月の日数" unit="日" value={d.fulltimeMonthlyDays ?? null} onChange={(v) => set({ fulltimeMonthlyDays: v })} placeholder="例 21" />
+        <NumberField label="週の時間" unit="時間" value={d.fulltimeWeeklyHours ?? null} onChange={(v) => set({ fulltimeWeeklyHours: v })} decimal step={0.5} max={80} />
+        <NumberField label="月の日数" unit="日" value={d.fulltimeMonthlyDays ?? null} onChange={(v) => set({ fulltimeMonthlyDays: v })} placeholder="例 21" step={1} max={31} />
       </Group>
     ),
   },
@@ -270,7 +270,7 @@ const steps: Step[] = [
     valid: () => true,
     render: (d, set) => (
       <Group>
-        <NumberField label="1か月" unit="円" value={d.commuteMonthly ?? 0} onChange={(v) => set({ commuteMonthly: v ?? 0 })} autoFocus />
+        <NumberField label="1か月" unit="円" value={d.commuteMonthly ?? 0} onChange={(v) => set({ commuteMonthly: v ?? 0 })} />
       </Group>
     ),
   },
@@ -281,7 +281,7 @@ const steps: Step[] = [
     valid: () => true,
     render: (d, set) => (
       <Group>
-        <NumberField label="1年間" unit="円" value={d.bonusAnnual ?? 0} onChange={(v) => set({ bonusAnnual: v ?? 0 })} autoFocus />
+        <NumberField label="1年間" unit="円" value={d.bonusAnnual ?? 0} onChange={(v) => set({ bonusAnnual: v ?? 0 })} />
       </Group>
     ),
   },
@@ -309,7 +309,7 @@ const steps: Step[] = [
     valid: () => true,
     render: (d, set) => (
       <Group>
-        <NumberField label="1年間" unit="円" value={d.otherIncome ?? 0} onChange={(v) => set({ otherIncome: v ?? 0 })} autoFocus />
+        <NumberField label="1年間" unit="円" value={d.otherIncome ?? 0} onChange={(v) => set({ otherIncome: v ?? 0 })} />
       </Group>
     ),
   },
@@ -374,11 +374,9 @@ export function Questionnaire(props: { initial: Draft; onDone: (a: Answers) => v
     <div className="flow">
       <header className="flow-bar">
         {index > 0 || props.onCancel ? (
-          <button type="button" className="text-button back" onClick={back}>
-            <svg viewBox="0 0 12 20" width="10" height="17" aria-hidden="true">
-              <path d="M10 2L2 10l8 8" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-            戻る
+          <button type="button" className="nav-back" onClick={back}>
+            <BackChevron />
+            <span>戻る</span>
           </button>
         ) : (
           <span />
