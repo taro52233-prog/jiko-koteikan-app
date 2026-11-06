@@ -1,0 +1,5 @@
+{
+  "_comment": "楽天のセール確定日程。お買い物マラソン・スーパーSALEは毎回日程がずれるため、公式発表が出たらここに追記する。未登録の月は月次パターンからの推定が使われ、digest には (推定) と表示される。",
+  "_kinds": "superSale | marathon | wonderful | zeroGo",
+  "events": []
+}
