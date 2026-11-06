@@ -225,7 +225,11 @@ export async function doctor() {
   };
 
   const common = group('共通', '両方の用途で必要');
-  common('RAKUTEN_APP_ID', !!config.research.rakutenAppId, '楽天ウェブサービスのアプリID');
+  common('RAKUTEN_APP_ID', !!config.research.rakutenAppId, 'アプリ情報画面の「アプリケーションID」（UUID形式）');
+  common('RAKUTEN_ACCESS_KEY', !!config.research.rakutenAccessKey,
+         config.research.rakutenAccessKey ? '' : '2026年のAPI刷新で必須。同画面の「アクセスキー」（pk_ で始まる）');
+  common('RAKUTEN_REFERER', !!process.env.RAKUTEN_REFERER,
+         process.env.RAKUTEN_REFERER || 'アプリ登録の Allowed websites と一致するURLを設定', false);
   const affiliate = checkAffiliateId(config.research.rakutenAffiliateId);
   common('RAKUTEN_AFFILIATE_ID', affiliate.ok,
          affiliate.ok ? '形式OK' : affiliate.reason);

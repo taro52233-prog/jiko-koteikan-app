@@ -182,3 +182,46 @@ test('ワークフローは文字数・タグ数に既定値を埋め込まな�
       `${name} に既定値を埋めると style.js のプロファイル値が効かなくなる: ${line.trim()}`);
   }
 });
+
+test('エンドポイントのバージョン候補を順に試し、通ったものを使い回す', async (t) => {
+  const http = await import('node:http');
+  const hits = [];
+  const server = http.createServer((req, res) => {
+    const url = new URL(req.url, 'http://x');
+    hits.push({ path: url.pathname, referer: req.headers.referer, accessKey: url.searchParams.get('accessKey') });
+    // 新しい2版は存在せず、古い版だけ生きている状況を再現する
+    if (!url.pathname.endsWith('/20220601')) {
+      res.writeHead(404, { 'content-type': 'application/json' });
+      return res.end('{"error":"not_found","error_description":"API Configuration not found"}');
+    }
+    res.writeHead(200, { 'content-type': 'application/json' });
+    res.end(JSON.stringify({ Items: [{ Item: {
+      itemCode: 'shop:1', itemName: 'テスト', itemPrice: 2000, itemUrl: 'https://item/1',
+      affiliateUrl: 'https://hb.afl.rakuten.co.jp/x', shopName: 'S', shopCode: 'shop',
+      reviewCount: 100, reviewAverage: 4.5, mediumImageUrls: [{ imageUrl: 'https://i/a.jpg?_ex=128x128' }],
+    } }] }));
+  });
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
+  t.after(() => server.close());
+
+  process.env.RAKUTEN_API_BASE = `http://127.0.0.1:${server.address().port}`;
+  process.env.RAKUTEN_RATE_LIMIT_MS = '1';
+  process.env.RAKUTEN_API_VERSIONS = '20260701,20260401,20220601';
+  process.env.RAKUTEN_REFERER = 'https://github.com/example/repo';
+  const { collectCandidates } = await import(`../src/research/rakuten.js?probe=${Date.now()}`);
+
+  const items = await collectCandidates({
+    rakutenAppId: 'uuid-app-id', rakutenAccessKey: 'pk_test', rakutenAffiliateId: 'a.b.c.d',
+    keywords: ['タンブラー'], genreIds: ['0'], minPrice: 1000, maxPrice: 30000, poolSize: 60,
+  });
+
+  assert.equal(items.length, 1, '生きている版で取得できる');
+  const versions = hits.map((h) => h.path.split('/').pop());
+  assert.deepEqual(versions.slice(0, 3), ['20260701', '20260401', '20220601'], '候補を順に試す');
+  assert.ok(!versions.slice(3).includes('20260701'),
+    '一度判明したら以後は古い候補を試し直さない');
+  assert.equal(hits[0].accessKey, 'pk_test', 'accessKey を送っている');
+  assert.equal(hits[0].referer, 'https://github.com/example/repo', 'Referer を送っている');
+
+  for (const k of ['RAKUTEN_API_BASE', 'RAKUTEN_API_VERSIONS', 'RAKUTEN_REFERER']) delete process.env[k];
+});

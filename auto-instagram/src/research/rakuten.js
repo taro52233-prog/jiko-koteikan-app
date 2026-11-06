@@ -10,8 +10,21 @@ import { fetchJson, sleep } from '../util.js';
 
 // テストや社内プロキシ経由のために差し替え可能にしてある
 const API_BASE = process.env.RAKUTEN_API_BASE || 'https://app.rakuten.co.jp/services/api';
-const SEARCH_ENDPOINT = `${API_BASE}/IchibaItem/Search/20220601`;
-const RANKING_ENDPOINT = `${API_BASE}/IchibaItem/Ranking/20220601`;
+
+/**
+ * 楽天APIは2026年に刷新され、エンドポイントのバージョン日付が変わった。
+ * 公式ドキュメントで確定版を確認できていないため、候補を順に試して
+ * 最初に通ったものを採用し、どれが通ったかをログに残す。
+ * 判明したら RAKUTEN_API_VERSIONS に1つだけ書いて固定するのが望ましい。
+ */
+export const API_VERSION_CANDIDATES =
+  (process.env.RAKUTEN_API_VERSIONS || '20260701,20260401,20220601')
+    .split(',').map((v) => v.trim()).filter(Boolean);
+
+const endpoint = (kind, version) => `${API_BASE}/IchibaItem/${kind}/${version}`;
+
+/** 一度通ったバージョンはプロセス内で使い回す（毎回1番目から試さない） */
+let resolvedVersion = null;
 
 /** 楽天のサムネイルURLは ?_ex=128x128 が付く。投稿用に大きい版へ差し替える */
 export function upscaleImageUrl(url, size = 800) {
@@ -47,28 +60,65 @@ function normalizeItem(raw, source) {
   };
 }
 
-async function call(endpoint, params, label) {
+/**
+ * 新仕様では applicationId に加えて accessKey が必要で、サーバーサイドからの
+ * 呼び出しには Referer が要るという報告がある。Referer は楽天側のアプリ登録で
+ * 「Allowed websites」に入れたドメインと一致している必要がある。
+ */
+function requestInit() {
+  const referer = process.env.RAKUTEN_REFERER || '';
+  return referer ? { headers: { referer } } : {};
+}
+
+/**
+ * 1バージョンだけ叩く。成功したら Items を、失敗したら例外を投げる。
+ */
+async function callVersion(kind, version, params, label) {
   const qs = new URLSearchParams(
     Object.entries(params).filter(([, v]) => v !== undefined && v !== null && v !== '')
   );
-  const body = await fetchJson(`${endpoint}?${qs}`, {}, { label });
+  const body = await fetchJson(`${endpoint(kind, version)}?${qs}`, requestInit(), { label, retries: 1 });
   return Array.isArray(body.Items) ? body.Items : [];
 }
 
+/**
+ * 有効なエンドポイントバージョンを探しながら叩く。
+ * 既に判明していればそれだけを使う。全滅したら最後の例外を投げる。
+ */
+async function call(kind, params, label) {
+  if (resolvedVersion) return callVersion(kind, resolvedVersion, params, label);
+
+  let lastErr;
+  for (const version of API_VERSION_CANDIDATES) {
+    try {
+      const items = await callVersion(kind, version, params, `${label}@${version}`);
+      resolvedVersion = version;
+      console.log(`✅ 有効な楽天APIバージョン: ${version}（RAKUTEN_API_VERSIONS に固定すると以後の試行が省けます）`);
+      return items;
+    } catch (e) {
+      lastErr = e;
+      console.warn(`  バージョン ${version} は不可: ${String(e.message).slice(0, 200)}`);
+    }
+    await sleep(RATE_LIMIT_MS);
+  }
+  throw lastErr;
+}
+
 /** ランキング上位を取る。トレンド性が高く「今売れているもの」を拾える */
-export async function fetchRanking({ appId, affiliateId, genreId = '0', period = 'realtime', age, sex }) {
-  const items = await call(RANKING_ENDPOINT, {
-    applicationId: appId, affiliateId, genreId, period, age, sex,
+export async function fetchRanking({ appId, accessKey, affiliateId, genreId = '0', period = 'realtime', age, sex }) {
+  const items = await call('Ranking', {
+    applicationId: appId, accessKey, affiliateId, genreId, period, age, sex,
   }, `rakuten-ranking(genre=${genreId})`);
   return items.map((i) => normalizeItem(i, `ranking:${genreId}`));
 }
 
 /** キーワード検索。ニッチ／自分の発信テーマに寄せた商品を拾える */
 export async function searchItems({
-  appId, affiliateId, keyword, genreId, minPrice, maxPrice, hits = 30, page = 1, sort = '-reviewCount',
+  appId, accessKey, affiliateId, keyword, genreId, minPrice, maxPrice, hits = 30, page = 1, sort = '-reviewCount',
 }) {
-  const items = await call(SEARCH_ENDPOINT, {
+  const items = await call('Search', {
     applicationId: appId,
+    accessKey,
     affiliateId,
     keyword,
     genreId: genreId && genreId !== '0' ? genreId : undefined,
@@ -103,7 +153,7 @@ export function checkAffiliateId(id) {
 }
 
 export async function collectCandidates(cfg) {
-  const { rakutenAppId: appId, rakutenAffiliateId: affiliateId,
+  const { rakutenAppId: appId, rakutenAccessKey: accessKey, rakutenAffiliateId: affiliateId,
           keywords, genreIds, minPrice, maxPrice, poolSize } = cfg;
   const pool = new Map();
   const add = (arr) => arr.forEach((it) => { if (it.id && !pool.has(it.id)) pool.set(it.id, it); });
@@ -118,7 +168,7 @@ export async function collectCandidates(cfg) {
     if (pool.size >= poolSize) break;
     attempts++;
     try {
-      add(await fetchRanking({ appId, affiliateId, genreId }));
+      add(await fetchRanking({ appId, accessKey, affiliateId, genreId }));
     } catch (e) {
       failures++; lastError = e;
       console.warn(`ランキング取得に失敗 (genre=${genreId}): ${e.message}`);
@@ -130,7 +180,7 @@ export async function collectCandidates(cfg) {
     if (pool.size >= poolSize) break;
     attempts++;
     try {
-      add(await searchItems({ appId, affiliateId, keyword, minPrice, maxPrice }));
+      add(await searchItems({ appId, accessKey, affiliateId, keyword, minPrice, maxPrice }));
     } catch (e) {
       failures++; lastError = e;
       console.warn(`検索に失敗 (${keyword}): ${e.message}`);
@@ -142,9 +192,11 @@ export async function collectCandidates(cfg) {
   // ありませんでした」という的外れな digest が毎朝届き続けることになる。
   if (attempts > 0 && failures === attempts) {
     const hint = /applicationId/i.test(lastError?.message ?? '')
-      ? '\nRAKUTEN_APP_ID が正しくありません。楽天ウェブサービスのアプリ情報画面にある'
-        + '「アプリケーションID」を設定してください（UUID形式。例: d6f87f28-079f-4a..）。\n'
-        + 'アプリケーションシークレットや、ドット区切りのアフィリエイトIDではありません。'
+      ? '\n認証が通っていません。楽天APIは2026年に刷新され、次の3点が必要です:\n'
+        + '  1) RAKUTEN_APP_ID      … アプリ情報画面の「アプリケーションID」（UUID形式）\n'
+        + '  2) RAKUTEN_ACCESS_KEY  … 同画面の「アクセスキー」（pk_ で始まる）\n'
+        + '  3) RAKUTEN_REFERER     … アプリ登録の Allowed websites と一致するURL\n'
+        + 'どのエンドポイントも通らない場合は、上のバージョン別ログを確認してください。'
       : '';
     throw new Error(`楽天APIへの${attempts}回の呼び出しがすべて失敗しました: ${lastError?.message}${hint}`);
   }

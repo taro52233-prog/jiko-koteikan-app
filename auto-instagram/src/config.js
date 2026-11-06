@@ -66,6 +66,8 @@ export const config = {
   research: {
     provider: (env.RESEARCH_PROVIDER || 'rakuten').toLowerCase(),
     rakutenAppId: env.RAKUTEN_APP_ID || '',
+    /** 2026年の刷新で必須になったアクセスキー（pk_ で始まる） */
+    rakutenAccessKey: env.RAKUTEN_ACCESS_KEY || '',
     rakutenAffiliateId: env.RAKUTEN_AFFILIATE_ID || '',
     /** 探索キーワード（カンマ区切り）。空ならランキングAPIのみ使う */
     keywords: list(env.RESEARCH_KEYWORDS),
