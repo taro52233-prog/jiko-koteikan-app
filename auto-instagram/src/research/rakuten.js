@@ -88,6 +88,20 @@ export async function searchItems({
  */
 const RATE_LIMIT_MS = Number(process.env.RAKUTEN_RATE_LIMIT_MS || 1100);
 
+/**
+ * 楽天アフィリエイトIDの形式（英数8文字×4ブロックをドットで繋いだもの）。
+ * 例: 5931a2ab.a76cafd1.5931a2ac.a4a7bb78
+ */
+export const AFFILIATE_ID_PATTERN = /^[0-9a-z]{8}\.[0-9a-z]{8}\.[0-9a-z]{8}\.[0-9a-z]{8}$/i;
+
+export function checkAffiliateId(id) {
+  if (!id) return { ok: false, reason: '未設定。報酬の発生しない通常リンクで投稿されます' };
+  if (!AFFILIATE_ID_PATTERN.test(id)) {
+    return { ok: false, reason: '形式が違います（英数8文字×4ブロックのドット区切り）。アプリIDを入れていませんか？' };
+  }
+  return { ok: true, reason: '' };
+}
+
 export async function collectCandidates(cfg) {
   const { rakutenAppId: appId, rakutenAffiliateId: affiliateId,
           keywords, genreIds, minPrice, maxPrice, poolSize } = cfg;
@@ -114,5 +128,18 @@ export async function collectCandidates(cfg) {
     await sleep(RATE_LIMIT_MS);
   }
 
-  return [...pool.values()];
+  const items = [...pool.values()];
+
+  // アフィリエイトIDの取り違えは、エラーにならず「報酬の出ないリンクで投稿され続ける」
+  // という静かな失敗になる。実際に affiliateUrl が返ってきたかで最終確認する。
+  const check = checkAffiliateId(affiliateId);
+  if (!check.ok) {
+    console.warn(`⚠️ RAKUTEN_AFFILIATE_ID: ${check.reason}`);
+  } else if (items.length && !items.some((i) => i.url?.includes('hb.afl.rakuten.co.jp'))) {
+    console.warn(
+      '⚠️ アフィリエイトIDを渡したのに、楽天からアフィリエイトリンクが返ってきていません。\n' +
+      '   IDが誤っている可能性があります。このまま投稿しても報酬は発生しません。');
+  }
+
+  return items;
 }

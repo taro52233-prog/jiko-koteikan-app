@@ -10,7 +10,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { config, requireConfig } from './config.js';
-import { collectCandidates } from './research/rakuten.js';
+import { collectCandidates, checkAffiliateId } from './research/rakuten.js';
 import { selectItems, selectKaimawari } from './research/score.js';
 import { generateContent } from './content/generate.js';
 import { generateRoomComment } from './content/room.js';
@@ -226,8 +226,9 @@ export async function doctor() {
 
   const common = group('共通', '両方の用途で必要');
   common('RAKUTEN_APP_ID', !!config.research.rakutenAppId, '楽天ウェブサービスのアプリID');
-  common('RAKUTEN_AFFILIATE_ID', !!config.research.rakutenAffiliateId,
-         config.research.rakutenAffiliateId ? '' : '未設定だと報酬が発生しないリンクになります');
+  const affiliate = checkAffiliateId(config.research.rakutenAffiliateId);
+  common('RAKUTEN_AFFILIATE_ID', affiliate.ok,
+         affiliate.ok ? '形式OK' : affiliate.reason);
   common('ANTHROPIC_API_KEY', !!config.content.anthropicApiKey);
   common('ステマ表示(景表法)', config.content.disclosureRequired,
          config.content.disclosureRequired ? config.content.roomDisclosureText : '無効。アフィリエイト運用では違法になり得ます');

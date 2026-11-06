@@ -129,3 +129,17 @@ test('楽天のサムネイルURLを高解像度版に差し替える', () => {
 test('商品説明のHTML・装飾記号を掃除する', () => {
   assert.equal(cleanCaption('<b>■容量</b>470ml&nbsp;★人気'), '容量 470ml 人気');
 });
+
+test('アフィリエイトIDの形式を検査する（取り違えは静かな失敗になるため）', async () => {
+  const { checkAffiliateId } = await import('../src/research/rakuten.js');
+
+  assert.equal(checkAffiliateId('5931a2ab.a76cafd1.5931a2ac.a4a7bb78').ok, true);
+
+  // アプリID（数字のみ）を誤って入れた場合に気づけること
+  assert.equal(checkAffiliateId('1098765432109876').ok, false);
+  assert.match(checkAffiliateId('1098765432109876').reason, /アプリID/);
+
+  assert.equal(checkAffiliateId('').ok, false, '未設定は報酬ゼロなので失格扱い');
+  assert.equal(checkAffiliateId('5931a2ab.a76cafd1.5931a2ac').ok, false, 'ブロック不足');
+  assert.equal(checkAffiliateId('5931a2ab-a76cafd1-5931a2ac-a4a7bb78').ok, false, '区切りがドットでない');
+});
