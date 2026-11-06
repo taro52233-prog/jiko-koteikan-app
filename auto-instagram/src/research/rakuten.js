@@ -97,7 +97,7 @@ export const AFFILIATE_ID_PATTERN = /^[0-9a-z]{8}\.[0-9a-z]{8}\.[0-9a-z]{8}\.[0-
 export function checkAffiliateId(id) {
   if (!id) return { ok: false, reason: '未設定。報酬の発生しない通常リンクで投稿されます' };
   if (!AFFILIATE_ID_PATTERN.test(id)) {
-    return { ok: false, reason: '形式が違います（英数8文字×4ブロックのドット区切り）。アプリIDを入れていませんか？' };
+    return { ok: false, reason: '形式が違います（英数8文字×4ブロックのドット区切り）。アプリケーションID（UUID形式）を入れていませんか？' };
   }
   return { ok: true, reason: '' };
 }
@@ -142,8 +142,9 @@ export async function collectCandidates(cfg) {
   // ありませんでした」という的外れな digest が毎朝届き続けることになる。
   if (attempts > 0 && failures === attempts) {
     const hint = /applicationId/i.test(lastError?.message ?? '')
-      ? '\nRAKUTEN_APP_ID が正しくありません。楽天ウェブサービスの「アプリID（applicationId）」'
-        + '（数字のみ）を設定してください。アプリケーションシークレットやアフィリエイトIDではありません。'
+      ? '\nRAKUTEN_APP_ID が正しくありません。楽天ウェブサービスのアプリ情報画面にある'
+        + '「アプリケーションID」を設定してください（UUID形式。例: d6f87f28-079f-4a..）。\n'
+        + 'アプリケーションシークレットや、ドット区切りのアフィリエイトIDではありません。'
       : '';
     throw new Error(`楽天APIへの${attempts}回の呼び出しがすべて失敗しました: ${lastError?.message}${hint}`);
   }

@@ -135,9 +135,10 @@ test('アフィリエイトIDの形式を検査する（取り違えは静かな
 
   assert.equal(checkAffiliateId('5931a2ab.a76cafd1.5931a2ac.a4a7bb78').ok, true);
 
-  // アプリID（数字のみ）を誤って入れた場合に気づけること
-  assert.equal(checkAffiliateId('1098765432109876').ok, false);
-  assert.match(checkAffiliateId('1098765432109876').reason, /アプリID/);
+  // アプリケーションID（UUID形式）を誤って入れた場合に気づけること
+  const appId = 'd6f87f28-079f-4abc-9def-0123456789ab';
+  assert.equal(checkAffiliateId(appId).ok, false);
+  assert.match(checkAffiliateId(appId).reason, /アプリ/);
 
   assert.equal(checkAffiliateId('').ok, false, '未設定は報酬ゼロなので失格扱い');
   assert.equal(checkAffiliateId('5931a2ab.a76cafd1.5931a2ac').ok, false, 'ブロック不足');

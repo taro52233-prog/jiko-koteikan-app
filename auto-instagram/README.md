@@ -157,8 +157,8 @@ digest には 🟢使用体験 / ⚪️ペインファースト のどちらで�
 
    | 名前 | 値 |
    | --- | --- |
-   | `RAKUTEN_APP_ID` | 楽天ウェブサービスのアプリID |
-   | `RAKUTEN_AFFILIATE_ID` | 楽天アフィリエイトID |
+   | `RAKUTEN_APP_ID` | アプリ情報画面の「アプリケーションID」（UUID形式） |
+   | `RAKUTEN_AFFILIATE_ID` | 同画面の「アフィリエイトID」（ドット区切り4ブロック） |
    | `ANTHROPIC_API_KEY` | `sk-ant-...`（https://console.anthropic.com/） |
 
 3. **Variables を登録**（同じ画面の Variables タブ）
