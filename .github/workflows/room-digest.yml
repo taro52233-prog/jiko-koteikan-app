@@ -55,7 +55,7 @@ jobs:
           SCORING_PROFILE: ${{ vars.SCORING_PROFILE || 'click' }}
           ROOM_PERSONA: ${{ vars.ROOM_PERSONA }}
           ROOM_POSTS_PER_DAY: ${{ vars.ROOM_POSTS_PER_DAY || '2' }}
-          ROOM_MAX_CHARS: ${{ vars.ROOM_MAX_CHARS || '80' }}
+          ROOM_MAX_CHARS: ${{ vars.ROOM_MAX_CHARS }}
           KAIMAWARI_COUNT: ${{ vars.KAIMAWARI_COUNT || '10' }}
           ROOM_WRITING_MODE: ${{ vars.ROOM_WRITING_MODE || 'auto' }}
           ROOM_STYLE: ${{ vars.ROOM_STYLE }}

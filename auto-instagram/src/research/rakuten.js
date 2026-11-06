@@ -108,11 +108,19 @@ export async function collectCandidates(cfg) {
   const pool = new Map();
   const add = (arr) => arr.forEach((it) => { if (it.id && !pool.has(it.id)) pool.set(it.id, it); });
 
+  // 全滅したのか、一部が落ちただけなのかを区別するために数える。
+  // 「候補0件」と「APIに1度も繋がらなかった」は原因も対処も全く違う。
+  let attempts = 0;
+  let failures = 0;
+  let lastError = null;
+
   for (const genreId of genreIds) {
     if (pool.size >= poolSize) break;
+    attempts++;
     try {
       add(await fetchRanking({ appId, affiliateId, genreId }));
     } catch (e) {
+      failures++; lastError = e;
       console.warn(`ランキング取得に失敗 (genre=${genreId}): ${e.message}`);
     }
     await sleep(RATE_LIMIT_MS);
@@ -120,12 +128,24 @@ export async function collectCandidates(cfg) {
 
   for (const keyword of keywords) {
     if (pool.size >= poolSize) break;
+    attempts++;
     try {
       add(await searchItems({ appId, affiliateId, keyword, minPrice, maxPrice }));
     } catch (e) {
+      failures++; lastError = e;
       console.warn(`検索に失敗 (${keyword}): ${e.message}`);
     }
     await sleep(RATE_LIMIT_MS);
+  }
+
+  // 1件も成功していないなら設定の問題。ここで握り潰すと「条件に合う商品が
+  // ありませんでした」という的外れな digest が毎朝届き続けることになる。
+  if (attempts > 0 && failures === attempts) {
+    const hint = /applicationId/i.test(lastError?.message ?? '')
+      ? '\nRAKUTEN_APP_ID が正しくありません。楽天ウェブサービスの「アプリID（applicationId）」'
+        + '（数字のみ）を設定してください。アプリケーションシークレットやアフィリエイトIDではありません。'
+      : '';
+    throw new Error(`楽天APIへの${attempts}回の呼び出しがすべて失敗しました: ${lastError?.message}${hint}`);
   }
 
   const items = [...pool.values()];

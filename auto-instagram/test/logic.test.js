@@ -143,3 +143,41 @@ test('アフィリエイトIDの形式を検査する（取り違えは静かな
   assert.equal(checkAffiliateId('5931a2ab.a76cafd1.5931a2ac').ok, false, 'ブロック不足');
   assert.equal(checkAffiliateId('5931a2ab-a76cafd1-5931a2ac-a4a7bb78').ok, false, '区切りがドットでない');
 });
+
+test('楽天APIが全滅したら「候補0件」ではなくエラーにする', async (t) => {
+  const http = await import('node:http');
+  const server = http.createServer((req, res) => {
+    res.writeHead(400, { 'content-type': 'application/json' });
+    res.end('{"error_description":"specify valid applicationId","error":"wrong_parameter"}');
+  });
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
+  t.after(() => server.close());
+
+  process.env.RAKUTEN_API_BASE = `http://127.0.0.1:${server.address().port}`;
+  process.env.RAKUTEN_RATE_LIMIT_MS = '1';
+  const { collectCandidates } = await import(`../src/research/rakuten.js?all-fail=${Date.now()}`);
+
+  await assert.rejects(
+    () => collectCandidates({
+      rakutenAppId: 'bad', rakutenAffiliateId: '', keywords: [], genreIds: ['0'],
+      minPrice: 1000, maxPrice: 30000, poolSize: 60,
+    }),
+    (e) => {
+      assert.match(e.message, /すべて失敗/, '全滅したことが分かる');
+      assert.match(e.message, /RAKUTEN_APP_ID/, 'applicationIdエラーなら原因を名指しする');
+      return true;
+    });
+  delete process.env.RAKUTEN_API_BASE;
+});
+
+test('ワークフローは文字数・タグ数に既定値を埋め込まない（文体プロファイルを上書きしてしまうため）', async () => {
+  const fsp = await import('node:fs');
+  const yml = fsp.readFileSync(
+    new URL('../../.github/workflows/room-digest.yml', import.meta.url), 'utf8');
+  for (const name of ['ROOM_MAX_CHARS', 'ROOM_HASHTAGS']) {
+    const line = yml.split('\n').find((l) => l.includes(`${name}:`));
+    assert.ok(line, `${name} が渡されている`);
+    assert.ok(!line.includes('||'),
+      `${name} に既定値を埋めると style.js のプロファイル値が効かなくなる: ${line.trim()}`);
+  }
+});
