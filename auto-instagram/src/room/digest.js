@@ -72,7 +72,10 @@ function candidateSection(candidates) {
     );
   }
 
-  const blocks = candidates.map((c, i) => {
+  // 紹介文が空の候補は出さない。商品名だけ並んで本文が無い状態を防ぐ
+  const usable = candidates.filter((c) => c.content?.variants?.length);
+
+  const blocks = usable.map((c, i) => {
     const { item, content } = c;
     const variants = content.variants.map((v, n) => paragraphs(
       `**パターン${n + 1}｜${v.angle}**（${v.chars}字）`,
@@ -95,6 +98,13 @@ function candidateSection(candidates) {
       variants,
     );
   });
+
+  if (!blocks.length) {
+    return paragraphs(
+      '### ☀️ 朝（5分）：投稿する',
+      '紹介文の生成に失敗しました。Actions のログを確認してください。',
+    );
+  }
 
   return paragraphs(
     '### ☀️ 朝（5分）：投稿する',
@@ -135,8 +145,10 @@ function nightSection(tomorrow) {
   return paragraphs(
     '### 🌙 夜（5分）：仕込む',
     '明日の分は既に用意してあります。眺めて、投稿する順番だけ決めておいてください。',
-    tomorrow?.length
-      ? tomorrow.map((c) => `- **${c.item.name.slice(0, 40)}**（${yen(c.item.price)}）— ${c.content.variants[0].text}`).join('\n')
+    tomorrow?.filter((c) => c.content?.variants?.length).length
+      ? tomorrow.filter((c) => c.content?.variants?.length)
+          .map((c) => `- **${c.item.name.slice(0, 40)}**（${yen(c.item.price)}）— ${c.content.variants[0].text}`)
+          .join('\n')
       : '- 明日の候補は明朝の実行時に生成されます。',
   );
 }

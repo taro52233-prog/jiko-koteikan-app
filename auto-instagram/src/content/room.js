@@ -278,54 +278,67 @@ export function needsDisclosure(mode, owned) {
   return !!(owned && (owned.pr || owned.provided));
 }
 
+/**
+ * 1件分の紹介文を作る。
+ *
+ * LLM は構造化出力を強制していても、稀に variants を配列ではなく
+ * ツール記法が混ざった文字列（例: `<parameter name="angle">...`）で返す。
+ * その場合 3パターンが空になるので、1度だけ作り直す。
+ * それでも空なら例外にして、呼び出し側でその商品を飛ばす。
+ * 空のまま digest に流すと、商品名だけ並んで紹介文が無い状態になる。
+ */
 export async function generateRoomComment(item, cfg, { event = null, owned = null } = {}) {
+  const useOwned = cfg.writingMode === 'auto' ? owned : null;
+
+  const { profile, samples } = loadStyleSamples(cfg.styleSamplesPath);
+  const styleName = cfg.roomStyle || profile || DEFAULT_STYLE;
+  const style = resolveStyle(styleName);
+  const maxChars = cfg.roomMaxChars > 0 ? cfg.roomMaxChars : style.maxChars;
+  const hashtagCount = cfg.roomHashtags ?? style.hashtagCount;
+  const styleSection = buildStyleSection({ styleName, samples, owned: !!useOwned });
+
   const client = new Anthropic({
     apiKey: cfg.anthropicApiKey,
     ...(process.env.ANTHROPIC_BASE_URL ? { baseURL: process.env.ANTHROPIC_BASE_URL } : {}),
   });
 
-  // 設定が pain-first 固定なら、所有登録があっても使わない
-  const useOwned = cfg.writingMode === 'auto' ? owned : null;
+  const ask = async () => {
+    const message = await client.messages.create({
+      model: cfg.model,
+      max_tokens: 2000,
+      system: ROOM_SYSTEM_PROMPT,
+      tools: [{ name: 'submit_room_comment', description: '楽天ROOMの紹介文を提出する', input_schema: ROOM_SCHEMA }],
+      tool_choice: { type: 'tool', name: 'submit_room_comment' },
+      messages: [{
+        role: 'user',
+        content: buildRoomPrompt({
+          item, persona: cfg.roomPersona, maxChars, hashtagCount, event, owned: useOwned, styleSection,
+        }),
+      }],
+    });
+    const toolUse = message.content.find((c) => c.type === 'tool_use');
+    if (!toolUse) throw new Error('Claude が構造化出力を返しませんでした');
+    return { input: toolUse.input, usage: message.usage };
+  };
 
-  // 文体は 環境変数 > サンプルファイルの profile > 既定 の順で決まる
-  const { profile, samples } = loadStyleSamples(cfg.styleSamplesPath);
-  const styleName = cfg.roomStyle || profile || DEFAULT_STYLE;
-  const style = resolveStyle(styleName);
-  // 文字数・ハッシュタグ数は明示指定が無ければ文体側の既定に従う
-  const maxChars = cfg.roomMaxChars > 0 ? cfg.roomMaxChars : style.maxChars;
-  const hashtagCount = cfg.roomHashtags ?? style.hashtagCount;
-  const styleSection = buildStyleSection({ styleName, samples, owned: !!useOwned });
+  let out = null;
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    const { input, usage } = await ask();
+    out = sanitizeRoom(input, {
+      maxChars,
+      hashtagCount,
+      disclosureRequired: needsDisclosure(cfg.disclosureMode, owned),
+      disclosureText: cfg.roomDisclosureText,
+      owned: !!useOwned,
+      register: style.register,
+    });
+    const label = `${useOwned ? '使用体験' : '未所有'} / ${style.label}` +
+                  (samples.length ? ` / お手本${samples.length}本` : '');
+    log(`ROOM紹介文を生成 [${label}] (in=${usage.input_tokens} out=${usage.output_tokens} tokens)`
+        + (attempt > 1 ? ' ※作り直し' : ''));
+    if (out.variants.length) return out;
+    warn(`紹介文が空で返ったため作り直します (${attempt}/2): ${item.name.slice(0, 30)}`);
+  }
 
-  const message = await client.messages.create({
-    model: cfg.model,
-    max_tokens: 2000,
-    system: ROOM_SYSTEM_PROMPT,
-    tools: [{ name: 'submit_room_comment', description: '楽天ROOMの紹介文を提出する', input_schema: ROOM_SCHEMA }],
-    tool_choice: { type: 'tool', name: 'submit_room_comment' },
-    messages: [{
-      role: 'user',
-      content: buildRoomPrompt({
-        item,
-        persona: cfg.roomPersona,
-        maxChars,
-        hashtagCount,
-        event,
-        owned: useOwned,
-        styleSection,
-      }),
-    }],
-  });
-
-  const toolUse = message.content.find((c) => c.type === 'tool_use');
-  if (!toolUse) throw new Error('Claude が構造化出力を返しませんでした');
-  log(`ROOM紹介文を生成 [${useOwned ? '使用体験' : 'ペインファースト'} / ${style.label}${samples.length ? ` / サンプル${samples.length}本` : ''}] (in=${message.usage.input_tokens} out=${message.usage.output_tokens} tokens)`);
-
-  return sanitizeRoom(toolUse.input, {
-    maxChars,
-    hashtagCount,
-    disclosureRequired: needsDisclosure(cfg.disclosureMode, owned),
-    disclosureText: cfg.roomDisclosureText,
-    owned: !!useOwned,
-    register: style.register,
-  });
+  throw new Error(`紹介文を2回とも生成できませんでした: ${item.name.slice(0, 40)}`);
 }

@@ -469,3 +469,21 @@ test('variants が解釈不能でも落ちない', () => {
     assert.ok(Array.isArray(out.hashtags));
   }
 });
+
+test('紹介文が空の候補は digest に出さない（商品名だけ並ぶのを防ぐ）', () => {
+  const plan = { date: '2026-11-07', target: null, phase: 'normal', todayEvents: [], upcoming: [], kaimawari: false };
+  const log = new RoomLog('/dev/null');
+  const empty = {
+    item: { name: '生成に失敗した商品', price: 1000, url: 'https://r/1', shopName: 'S',
+            reviewCount: 10, reviewAverage: 4.0, images: [] },
+    content: { benefit: 'x', targetPersona: 'y', hashtags: [], variants: [] },
+  };
+  const { body } = buildDigest({
+    plan, candidates: [empty], tomorrow: [empty], kaimawari: null,
+    progress: rankProgress(log, { today: '2026-11-07' }),
+  });
+
+  assert.ok(!body.includes('生成に失敗した商品'), '本文の無い商品は載せない');
+  assert.ok(body.includes('紹介文の生成に失敗しました'), '黙って空にせず理由を出す');
+  assert.ok(body.includes('明朝の実行時に生成されます'), '夜のセクションも落ちない');
+});
