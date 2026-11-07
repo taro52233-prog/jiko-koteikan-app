@@ -172,6 +172,61 @@ const RATE_LIMIT_MS = Number(process.env.RAKUTEN_RATE_LIMIT_MS || 1100);
  */
 export const AFFILIATE_ID_PATTERN = /^[0-9a-z]{8}\.[0-9a-z]{8}\.[0-9a-z]{8}\.[0-9a-z]{8}$/i;
 
+/**
+ * 全滅したときだけ走る自己診断。
+ *
+ * 403 REQUEST_CONTEXT_BODY_HTTP_REFERRER_MISSING のように、こちらは送っているのに
+ * 「無い」と言われる種類の失敗は、推測で1つずつ直すと1往復ごとに実行待ちが発生する。
+ * Refererの渡し方の候補をまとめて1回で試し、結果を並べてログに出す。
+ * 通った形が分かれば、それを実装に固定する。
+ */
+async function diagnose({ appId, accessKey }) {
+  // テストや社内プロキシでホストを差し替えている場合は、本番ホストへ実通信しない
+  if (BASE_OVERRIDE || process.env.RAKUTEN_SKIP_DIAGNOSE) return;
+
+  const base = 'https://openapi.rakuten.co.jp/ichibams/api/IchibaItem/Search/20260701';
+  const referer = process.env.RAKUTEN_REFERER || 'https://github.com/';
+  const origin = (() => { try { return new URL(referer).origin; } catch { return 'https://github.com'; } })();
+  const common = { applicationId: appId, accessKey, keyword: 'タンブラー', hits: 1 };
+
+  const variants = [
+    { name: 'Refererヘッダ（現行）', init: { headers: { referer } }, extra: {} },
+    { name: 'Referer + Origin ヘッダ', init: { headers: { referer, origin } }, extra: {} },
+    { name: 'Refererをオリジンのみに', init: { headers: { referer: `${origin}/` } }, extra: {} },
+    { name: 'クエリ httpReferrer', init: {}, extra: { httpReferrer: referer } },
+    { name: 'クエリ referer', init: {}, extra: { referer } },
+  ];
+
+  console.warn('\n──────── 自己診断: Refererの渡し方を総当たり ────────');
+  for (const v of variants) {
+    const qs = new URLSearchParams(
+      Object.entries({ ...common, ...v.extra }).filter(([, x]) => x !== undefined && x !== null && x !== ''));
+    try {
+      const res = await fetch(`${base}?${qs}`, { ...v.init, signal: AbortSignal.timeout(20000) });
+      const text = (await res.text()).replace(/\s+/g, ' ').slice(0, 160);
+      console.warn(`  ${res.ok ? '✅' : '❌'} ${v.name}: HTTP ${res.status} ${text}`);
+    } catch (e) {
+      console.warn(`  ❌ ${v.name}: ${e.message}`);
+    }
+    await sleep(RATE_LIMIT_MS);
+  }
+
+  // POST形式（エラー名に BODY が含まれるため、本文で渡す仕様の可能性を確かめる）
+  try {
+    const res = await fetch(base, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', referer },
+      body: JSON.stringify({ requestContext: { httpReferrer: referer }, ...common }),
+      signal: AbortSignal.timeout(20000),
+    });
+    const text = (await res.text()).replace(/\s+/g, ' ').slice(0, 160);
+    console.warn(`  ${res.ok ? '✅' : '❌'} POST + requestContext.httpReferrer: HTTP ${res.status} ${text}`);
+  } catch (e) {
+    console.warn(`  ❌ POST + requestContext: ${e.message}`);
+  }
+  console.warn('────────────────────────────────────────────────\n');
+}
+
 export function checkAffiliateId(id) {
   if (!id) return { ok: false, reason: '未設定。報酬の発生しない通常リンクで投稿されます' };
   if (!AFFILIATE_ID_PATTERN.test(id)) {
@@ -225,6 +280,8 @@ export async function collectCandidates(cfg) {
     }
     await sleep(RATE_LIMIT_MS);
   }
+
+  if (attempts > 0 && failures === attempts) await diagnose({ appId, accessKey });
 
   // 1件も成功していないなら設定の問題。ここで握り潰すと「条件に合う商品が
   // ありませんでした」という的外れな digest が毎朝届き続けることになる。
