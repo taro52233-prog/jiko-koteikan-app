@@ -1,1 +1,9 @@
-{ "version": 1, "profile": { "photo": false, "bio": false, "genres": false }, "days": [] }
+{
+  "version": 1,
+  "profile": {
+    "photo": false,
+    "bio": false,
+    "genres": false
+  },
+  "days": []
+}
