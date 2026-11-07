@@ -169,6 +169,7 @@ export const ROOM_SCHEMA = {
 export function sanitizeRoom(draft, {
   maxChars, hashtagCount, disclosureRequired, disclosureText, owned = false, register = 'polite',
 }) {
+  // disclosureRequired は呼び出し側で「モード × 商品が提供品か」から解決済み
   const out = structuredClone(draft);
 
   const banned = /(日本一|世界一|業界No\.?1|最安値保証|必ず痩せ|絶対に治|完治)/g;
@@ -204,13 +205,25 @@ export function sanitizeRoom(draft, {
     .filter((t) => t.length > 1 && !seen.has(t) && seen.add(t))
     .slice(0, hashtagCount);
 
-  // ステマ規制（景品表示法）: 楽天ROOMもアフィリエイトなので広告である旨の明示が必要
+  /**
+   * 広告である旨の表示。
+   *
+   * 楽天アフィリエイトの公式ガイドラインでは、商品提供・イベント参加・
+   * お試しクーポン利用など「成果報酬以外のやり取り」がある場合に必須で、
+   * 自分で選んで自分で買った通常のアフィリエイト投稿では任意とされている。
+   * 消費者庁の運用基準も、事業者とアフィリエイターの間で情報のやり取りが
+   * 一切ない場合は「事業者の表示」に該当しないとしている。
+   *
+   * 位置は末尾ではなく **冒頭** に置く。公式は「冒頭にはっきり分かる形で」と
+   * しており、末尾や小さな表記は分かりにくい表示として無効になり得る。
+   */
   out.variants = out.variants.map((v) => ({
     ...v,
-    posting: disclosureRequired && !v.text.includes(disclosureText)
-      ? `${v.text}\n${disclosureText}`
+    posting: disclosureRequired && !v.text.startsWith(disclosureText)
+      ? `${disclosureText}\n${v.text}`
       : v.text,
   }));
+  out.disclosed = !!disclosureRequired;
 
   out.scenePrompt = String(out.scenePrompt ?? '').trim();
   out.writingMode = owned ? 'owned' : 'pain-first';
@@ -221,6 +234,18 @@ export function sanitizeRoom(draft, {
 /**
  * @param {object} opts.owned data/owned-items.json の登録情報。あれば使用体験として書く
  */
+/**
+ * 広告表示が必要かを判定する。
+ * off    … 付けない
+ * always … 常に付ける
+ * auto   … 提供品（owned-items.json で pr: true）のときだけ付ける（既定）
+ */
+export function needsDisclosure(mode, owned) {
+  if (mode === 'always') return true;
+  if (mode === 'off') return false;
+  return !!(owned && (owned.pr || owned.provided));
+}
+
 export async function generateRoomComment(item, cfg, { event = null, owned = null } = {}) {
   const client = new Anthropic({
     apiKey: cfg.anthropicApiKey,
@@ -266,7 +291,7 @@ export async function generateRoomComment(item, cfg, { event = null, owned = nul
   return sanitizeRoom(toolUse.input, {
     maxChars,
     hashtagCount,
-    disclosureRequired: cfg.disclosureRequired,
+    disclosureRequired: needsDisclosure(cfg.disclosureMode, owned),
     disclosureText: cfg.roomDisclosureText,
     owned: !!useOwned,
     register: style.register,

@@ -13,7 +13,7 @@ import { config, requireConfig } from './config.js';
 import { collectCandidates, checkAffiliateId } from './research/rakuten.js';
 import { selectItems, selectKaimawari } from './research/score.js';
 import { generateContent } from './content/generate.js';
-import { generateRoomComment } from './content/room.js';
+import { generateRoomComment, needsDisclosure } from './content/room.js';
 import { renderCarousel } from './image/render.js';
 import { History } from './store/history.js';
 import { Queue } from './store/queue.js';
@@ -60,7 +60,11 @@ export async function build({ dryRun = false, count = 1 } = {}) {
     try {
       log(`▶ ${item.name} (score=${item.score})`);
 
-      const content = await generateContent(item, config.content);
+      // 広告表示の要否は楽天ROOM側と同じ基準で決める（提供品のみ必須）
+      const ownedReg = OwnedItems.load(config.paths.owned).find(item);
+      const disclose = needsDisclosure(config.content.disclosureMode, ownedReg);
+      const content = await generateContent(
+        { ...item }, { ...config.content, disclosureRequired: disclose });
 
       // 表紙に敷く使用シーン画像。楽天の商品画像は入力せず、テキストから新規生成する
       // （提供画像の加工は規約で認められていないため）。失敗しても投稿は止めない。
@@ -69,7 +73,8 @@ export async function build({ dryRun = false, count = 1 } = {}) {
       });
 
       const { files } = await renderCarousel({
-        item, content, cfg: config.image, outDir: config.paths.publicDir, slug, sceneBuffer,
+        item, content, cfg: { ...config.image, showPrBadge: disclose },
+        outDir: config.paths.publicDir, slug, sceneBuffer,
       });
 
       const relPaths = files.map((f) => path.relative(config.paths.publicDir, f).split(path.sep).join('/'));
@@ -234,8 +239,12 @@ export async function doctor() {
   common('RAKUTEN_AFFILIATE_ID', affiliate.ok,
          affiliate.ok ? '形式OK' : affiliate.reason);
   common('ANTHROPIC_API_KEY', !!config.content.anthropicApiKey);
-  common('ステマ表示(景表法)', config.content.disclosureRequired,
-         config.content.disclosureRequired ? config.content.roomDisclosureText : '無効。アフィリエイト運用では違法になり得ます');
+  common('広告表示(景表法)', ['auto', 'always', 'off'].includes(config.content.disclosureMode),
+         config.content.disclosureMode === 'auto'
+           ? '提供品（owned-items.json の pr: true）のみ冒頭に表示'
+           : config.content.disclosureMode === 'always'
+             ? `常に冒頭に表示: ${config.content.roomDisclosureText}`
+             : '表示しない。商品提供を受けた投稿では必須なので注意');
 
   const room = group('楽天ROOM（digest）', 'GitHub Actions 上でのみ Issue を作成');
   room('スコアリング', ['click', 'conversion'].includes(config.research.scoringProfile),

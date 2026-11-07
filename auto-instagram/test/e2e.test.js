@@ -149,7 +149,9 @@ test('build → publish が通しで動く（外部APIはモック）', async (t
   }
 
   // 生成コンテンツのコンプライアンス処理が効いていること
-  assert.ok(entry.content.fullCaption.startsWith('【PR】'), 'ステマ表示が先頭に入る');
+  // 提供品として登録していない通常のアフィリエイト投稿では、楽天の公式
+  // ガイドライン上 PR表記は任意。既定（auto）では付けない
+  assert.ok(!entry.content.fullCaption.startsWith('【PR】'), '通常投稿では付けない');
   assert.ok(!entry.content.fullCaption.includes('日本一'), '最上級表現が除去される');
   assert.ok(entry.content.fullCaption.includes('#タンブラー'), 'ハッシュタグが付く');
 

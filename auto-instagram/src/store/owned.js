@@ -23,7 +23,14 @@ export class OwnedItems {
         // メモが空の登録は「体験の中身が無い」ので無効にする。
         // これが無いと結局LLMが体験を創作することになる。
         .filter((i) => i && typeof i.match === 'string' && i.match.trim() && String(i.note ?? '').trim())
-        .map((i) => ({ match: i.match.trim(), note: String(i.note).trim(), since: i.since ?? null }));
+        .map((i) => ({
+          match: i.match.trim(),
+          note: String(i.note).trim(),
+          since: i.since ?? null,
+          // 商品提供・クーポン等を受け取ったもの。これが true のときだけ
+          // auto モードで広告表示を付ける（楽天の公式ガイドラインに合わせる）
+          pr: i.pr === true || i.provided === true,
+        }));
       return new OwnedItems(items);
     } catch (e) {
       console.warn(`所有商品リストの読み込みに失敗: ${e.message}`);

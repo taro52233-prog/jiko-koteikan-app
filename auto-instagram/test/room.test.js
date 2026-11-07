@@ -100,7 +100,7 @@ test('買い回りリストは価格帯外の商品を含めない', () => {
 
 /* ---------------- 紹介文の検品 ---------------- */
 
-const roomOpts = { maxChars: 80, hashtagCount: 5, disclosureRequired: true, disclosureText: '#PR #広告' };
+const roomOpts = { maxChars: 80, hashtagCount: 5, disclosureRequired: true, disclosureText: '【PR】商品提供を受けています' };
 const ownedOpts = { ...roomOpts, owned: true };
 
 test('未所有の商品では、使ったことがある体の表現を落とす', () => {
@@ -149,10 +149,35 @@ test('80文字を超える紹介文は必ず丸められる', () => {
   assert.ok(out.variants[0].text.endsWith('…'));
 });
 
-test('ステマ規制の表示を投稿用テキストに必ず付ける', () => {
+test('広告表示は末尾ではなく冒頭に置く', () => {
+  // 公式は「冒頭にはっきり分かる形で」としており、
+  // 末尾やハッシュタグだけの表記は分かりにくい表示として無効になり得る
   const out = sanitizeRoom({ variants: [{ angle: 'a', text: 'いい感じです' }], hashtags: [] }, roomOpts);
-  assert.ok(out.variants[0].posting.includes('#PR'));
-  assert.ok(!out.variants[0].text.includes('#PR'), '本文自体は汚さない');
+  assert.ok(out.variants[0].posting.startsWith('【PR】'), out.variants[0].posting);
+  assert.ok(!out.variants[0].text.includes('【PR】'), '本文自体は汚さない');
+  assert.equal(out.disclosed, true);
+});
+
+test('広告表示の要否: 提供品のときだけ auto で付く', async () => {
+  const { needsDisclosure } = await import('../src/content/room.js');
+  const bought = { match: 'x', note: '自分で買った' };
+  const given = { match: 'y', note: '提供を受けた', pr: true };
+
+  // 自分で選んで買った商品は、楽天の公式ガイドライン上 PR表記は任意
+  assert.equal(needsDisclosure('auto', bought), false);
+  assert.equal(needsDisclosure('auto', null), false, '未所有の通常投稿も任意');
+  // 商品提供を受けたものは必須
+  assert.equal(needsDisclosure('auto', given), true);
+
+  assert.equal(needsDisclosure('always', bought), true, 'always は判断を省いて常に付ける');
+  assert.equal(needsDisclosure('off', given), false, 'off は明示的に抑止する');
+});
+
+test('表示しない設定なら投稿テキストを汚さない', () => {
+  const out = sanitizeRoom({ variants: [{ angle: 'a', text: 'いい感じです' }], hashtags: [] },
+    { ...roomOpts, disclosureRequired: false });
+  assert.equal(out.variants[0].posting, 'いい感じです');
+  assert.equal(out.disclosed, false);
 });
 
 /* ---------------- 所有商品の登録 ---------------- */
@@ -243,7 +268,7 @@ test('digest に必要な要素が揃っている', () => {
     content: {
       benefit: '朝の支度が短くなる', targetPersona: '忙しい共働き世帯',
       hashtags: ['#時短'],
-      variants: [{ angle: '時短', text: '朝が楽になりそう', chars: 8, posting: '朝が楽になりそう\n#PR #広告' }],
+      variants: [{ angle: '時短', text: '朝が楽になりそう', chars: 8, posting: '【PR】商品提供を受けています\n朝が楽になりそう' }],
     },
   };
   const log = new RoomLog('/dev/null');
@@ -261,7 +286,7 @@ test('digest に必要な要素が揃っている', () => {
   assert.ok(body.includes('🌤 昼'), '昼のセクション');
   assert.ok(body.includes('🌙 夜'), '夜のセクション');
   assert.ok(body.includes('買い回りリスト'), 'マラソン期は買い回りが出る');
-  assert.ok(body.includes('#PR'), '投稿用テキストにPR表記');
+  assert.ok(body.includes('【PR】'), '提供品なら投稿用テキストに冒頭PR表記');
   for (const marker of Object.values(LOG_MARKERS)) {
     assert.ok(body.includes(marker), `チェックボックスの目印 ${marker} がある`);
   }

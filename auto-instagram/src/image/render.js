@@ -23,6 +23,8 @@ function newCanvas(cfg) {
 
 /** ステマ規制対応: 画像そのものにも PR 表記を焼き込む（本文だけだと見落とされる） */
 function drawPrBadge(ctx, cfg, { dark = false } = {}) {
+  // 商品提供を受けた場合のみ表示する（通常のアフィリエイト投稿では任意）
+  if (!cfg.showPrBadge) return;
   const label = 'PR';
   ctx.font = font(30, 'bold');
   const w = ctx.measureText(label).width + 40;

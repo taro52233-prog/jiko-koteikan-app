@@ -115,9 +115,22 @@ export const config = {
     /** カルーセルの枚数（1 なら単一画像投稿） */
     slides: Math.min(10, Math.max(1, num(env.CONTENT_SLIDES, 5))),
     maxHashtags: num(env.CONTENT_MAX_HASHTAGS, 20),
-    /** 景品表示法（ステマ規制）対応。アフィリエイト運用では必ず true のままにすること */
-    disclosureRequired: bool(env.CONTENT_DISCLOSURE_REQUIRED, true),
-    disclosureText: env.CONTENT_DISCLOSURE_TEXT || '【PR】この投稿にはアフィリエイトリンク・広告が含まれます。',
+    /**
+     * 広告である旨の表示モード。
+     *
+     * 楽天アフィリエイトの公式ガイドラインでは、商品提供・イベント参加・
+     * お試しクーポン利用など「成果報酬以外のやり取り」がある場合にのみ必須で、
+     * 自分で選んで自分で買った通常のアフィリエイト投稿では任意とされている。
+     *
+     *   auto   … 提供品（owned-items.json で pr: true）のときだけ付ける（既定）
+     *   always … 常に付ける（判断を省きたい場合はこれが安全側）
+     *   off    … 付けない
+     */
+    disclosureMode: (env.DISCLOSURE_MODE
+      || (bool(env.CONTENT_DISCLOSURE_REQUIRED, false) ? 'always' : 'auto')).toLowerCase(),
+    /** 旧設定。CONTENT_DISCLOSURE_REQUIRED=true は DISCLOSURE_MODE=always と同義 */
+    disclosureRequired: bool(env.CONTENT_DISCLOSURE_REQUIRED, false),
+    disclosureText: env.CONTENT_DISCLOSURE_TEXT || '【PR】商品提供を受けています。',
 
     // --- 楽天ROOM 用（Instagram とは文字数もトーンも別物なので分けている） ---
     roomPersona: env.ROOM_PERSONA || env.BRAND_PERSONA
@@ -137,7 +150,8 @@ export const config = {
      */
     roomMaxChars: num(env.ROOM_MAX_CHARS, 0),
     roomHashtags: env.ROOM_HASHTAGS === undefined || env.ROOM_HASHTAGS === '' ? null : num(env.ROOM_HASHTAGS, 0),
-    roomDisclosureText: env.ROOM_DISCLOSURE_TEXT || '#PR #広告',
+    /** 冒頭に置く。末尾やハッシュタグだけの表記は分かりにくい表示として無効になり得る */
+    roomDisclosureText: env.ROOM_DISCLOSURE_TEXT || '【PR】商品提供を受けています',
     /** 1日に用意する投稿候補の数（動画のルーティンは1日1〜2投稿） */
     roomPostsPerDay: num(env.ROOM_POSTS_PER_DAY, 2),
     /** お買い物マラソン期に出す買い回りリストの件数（10ショップで倍率上限） */
