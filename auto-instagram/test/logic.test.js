@@ -188,7 +188,8 @@ test('エンドポイントのバージョン候補を順に試し、通った�
   const hits = [];
   const server = http.createServer((req, res) => {
     const url = new URL(req.url, 'http://x');
-    hits.push({ path: url.pathname, referer: req.headers.referer, accessKey: url.searchParams.get('accessKey') });
+    hits.push({ path: url.pathname, referer: req.headers.referer, origin: req.headers.origin,
+                accessKey: url.searchParams.get('accessKey') });
     // 新しい2版は存在せず、古い版だけ生きている状況を再現する
     if (!url.pathname.endsWith('/20220601')) {
       res.writeHead(404, { 'content-type': 'application/json' });
@@ -222,6 +223,8 @@ test('エンドポイントのバージョン候補を順に試し、通った�
     '一度判明したら以後は古い候補を試し直さない');
   assert.equal(hits[0].accessKey, 'pk_test', 'accessKey を送っている');
   assert.equal(hits[0].referer, 'https://github.com/example/repo', 'Referer を送っている');
+  // Referer だけだと新ホストは 403 を返す。Origin も必須
+  assert.equal(hits[0].origin, 'https://github.com', 'Origin も送っている');
 
   for (const k of ['RAKUTEN_API_BASE', 'RAKUTEN_API_VERSIONS', 'RAKUTEN_REFERER']) delete process.env[k];
 });

@@ -85,13 +85,21 @@ function normalizeItem(raw, source) {
 }
 
 /**
- * 新仕様では applicationId に加えて accessKey が必要で、サーバーサイドからの
- * 呼び出しには Referer が要るという報告がある。Referer は楽天側のアプリ登録で
- * 「Allowed websites」に入れたドメインと一致している必要がある。
+ * 新仕様（openapi.rakuten.co.jp）は Referer と Origin の **両方** を要求する。
+ *
+ * Referer だけだと 403 REQUEST_CONTEXT_BODY_HTTP_REFERRER_MISSING が返る。
+ * 「MISSING」と言われるが実際には送っており、Origin が無いことが原因。
+ * 本番での総当たり診断で、両方を付けた場合のみ 200 が返ることを確認済み。
+ *
+ * どちらの値も楽天側のアプリ登録「Allowed websites」に入れたドメインと
+ * 一致している必要がある。
  */
 function requestInit() {
   const referer = process.env.RAKUTEN_REFERER || '';
-  return referer ? { headers: { referer } } : {};
+  if (!referer) return {};
+  let origin;
+  try { origin = new URL(referer).origin; } catch { return { headers: { referer } }; }
+  return { headers: { referer, origin } };
 }
 
 /**
