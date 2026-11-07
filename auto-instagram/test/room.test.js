@@ -422,3 +422,13 @@ test('ハッシュタグ0指定なら1つも付けない', () => {
   assert.deepEqual(out.hashtags, []);
   assert.ok(!out.variants[0].posting.includes('#タンブラー'));
 });
+
+test('variants が配列でなくても落ちない（LLMが形を崩すことがある）', () => {
+  // `?? []` は null/undefined しか拾わないため、オブジェクトが来ると .map で落ちる。
+  // 本番で実際にこれで1件分の生成が失敗した。
+  for (const broken of [{ '0': { angle: 'a', text: 'b' } }, 'まとめて1本の文字列', 42, null, undefined]) {
+    const out = sanitizeRoom({ variants: broken, hashtags: broken }, roomOpts);
+    assert.ok(Array.isArray(out.variants), `variants が配列になる: ${JSON.stringify(broken)}`);
+    assert.ok(Array.isArray(out.hashtags));
+  }
+});

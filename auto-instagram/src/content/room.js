@@ -178,7 +178,9 @@ export function sanitizeRoom(draft, {
   // 断定の完了形（使っていないのに結果を報告する形）
   const claimsResult = /(変わりました|なくなりました|解決しました|楽になりました|快適になりました)/g;
 
-  out.variants = (out.variants ?? []).map((v) => {
+  // LLM が variants を配列以外（オブジェクト等）で返すことがある。
+  // `?? []` は null/undefined しか拾わないので .map が落ちる（実際に落ちた）。
+  out.variants = (Array.isArray(out.variants) ? out.variants : []).map((v) => {
     let text = String(v.text ?? '')
       .replace(banned, '')
       .replace(fakeQuote, 'レビュー件数を見るかぎり');
@@ -197,7 +199,7 @@ export function sanitizeRoom(draft, {
   }).filter((v) => v.text);
 
   const seen = new Set();
-  out.hashtags = (out.hashtags ?? [])
+  out.hashtags = (Array.isArray(out.hashtags) ? out.hashtags : [])
     .map((t) => `#${String(t).replace(/^#+/, '').replace(/[\s#]/g, '')}`)
     .filter((t) => t.length > 1 && !seen.has(t) && seen.add(t))
     .slice(0, hashtagCount);
