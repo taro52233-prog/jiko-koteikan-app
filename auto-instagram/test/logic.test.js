@@ -225,3 +225,35 @@ test('エンドポイントのバージョン候補を順に試し、通った�
 
   for (const k of ['RAKUTEN_API_BASE', 'RAKUTEN_API_VERSIONS', 'RAKUTEN_REFERER']) delete process.env[k];
 });
+
+test('ランキングが404でも、検索で候補が取れていれば続行する', async (t) => {
+  const http = await import('node:http');
+  const server = http.createServer((req, res) => {
+    const url = new URL(req.url, 'http://x');
+    if (url.pathname.includes('/Ranking/')) {
+      res.writeHead(404, { 'content-type': 'application/json' });
+      return res.end('{"statusCode":404,"message":"Resource not found"}');
+    }
+    res.writeHead(200, { 'content-type': 'application/json' });
+    res.end(JSON.stringify({ Items: [{ Item: {
+      itemCode: 'shop:1', itemName: '検索で取れた商品', itemPrice: 2000, itemUrl: 'https://item/1',
+      affiliateUrl: 'https://hb.afl.rakuten.co.jp/x', shopName: 'S', shopCode: 'shop',
+      reviewCount: 100, reviewAverage: 4.5, mediumImageUrls: [{ imageUrl: 'https://i/a.jpg?_ex=128x128' }],
+    } }] }));
+  });
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
+  t.after(() => server.close());
+
+  process.env.RAKUTEN_API_BASE = `http://127.0.0.1:${server.address().port}`;
+  process.env.RAKUTEN_RATE_LIMIT_MS = '1';
+  const { collectCandidates } = await import(`../src/research/rakuten.js?rank404=${Date.now()}`);
+
+  const items = await collectCandidates({
+    rakutenAppId: 'uuid', rakutenAccessKey: 'pk_x', rakutenAffiliateId: '5935f3b3.6624f5ad.5935f3b4.fe4ea5e7',
+    keywords: ['タンブラー'], genreIds: ['0'], minPrice: 1000, maxPrice: 30000, poolSize: 60,
+  });
+
+  assert.equal(items.length, 1, 'ランキングが落ちても検索結果が返る');
+  assert.equal(items[0].name, '検索で取れた商品');
+  delete process.env.RAKUTEN_API_BASE;
+});

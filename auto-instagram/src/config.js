@@ -69,8 +69,18 @@ export const config = {
     /** 2026年の刷新で必須になったアクセスキー（pk_ で始まる） */
     rakutenAccessKey: env.RAKUTEN_ACCESS_KEY || '',
     rakutenAffiliateId: env.RAKUTEN_AFFILIATE_ID || '',
-    /** 探索キーワード（カンマ区切り）。空ならランキングAPIのみ使う */
-    keywords: list(env.RESEARCH_KEYWORDS),
+    /**
+     * 探索キーワード（カンマ区切り）。
+     * 空のままだと検索APIが一度も呼ばれず、ランキングAPIだけに依存することになる。
+     * ランキングは新ホストでパスが見つからない場合があるため、既定値を持たせて
+     * 検索が必ず走るようにしてある。自分の発信テーマに合わせて上書きすること。
+     */
+    keywords: list(env.RESEARCH_KEYWORDS, [
+      'タンブラー', '珪藻土バスマット', '詰め替えボトル', '収納ケース',
+      'デスクライト', '加湿器', '洗濯ネット', 'キッチン 時短',
+    ]),
+    /** 既定キーワードを使っているか（digest で注意を出すため） */
+    keywordsAreDefault: !env.RESEARCH_KEYWORDS,
     /** 楽天ジャンルID（カンマ区切り）。0 = 全ジャンル */
     genreIds: list(env.RESEARCH_GENRE_IDS, ['0']),
     minPrice: num(env.RESEARCH_MIN_PRICE, 1000),

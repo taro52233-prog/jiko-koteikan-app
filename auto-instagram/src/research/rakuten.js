@@ -47,6 +47,8 @@ const endpointUrl = ({ base, version }, kind) => `${base}/IchibaItem/${kind}/${v
 
 /** 一度通った組はプロセス内で使い回す（毎回1番目から試さない） */
 let resolvedEndpoint = null;
+/** 新ホストで Ranking のパスが見つからなかったら、以後は検索だけで回す */
+let rankingUnavailable = false;
 
 /** 楽天のサムネイルURLは ?_ex=128x128 が付く。投稿用に大きい版へ差し替える */
 export function upscaleImageUrl(url, size = 800) {
@@ -108,6 +110,7 @@ async function callEndpoint(kind, ep, params, label) {
  * 既に判明していればそれだけを使う。全滅したら最後の例外を投げる。
  */
 async function call(kind, params, label) {
+  // 新ホストでは種別ごとにパスの有無が違う。解決済みならそれを使う
   if (resolvedEndpoint) return callEndpoint(kind, resolvedEndpoint, params, label);
 
   let lastErr;
@@ -189,18 +192,9 @@ export async function collectCandidates(cfg) {
   let failures = 0;
   let lastError = null;
 
-  for (const genreId of genreIds) {
-    if (pool.size >= poolSize) break;
-    attempts++;
-    try {
-      add(await fetchRanking({ appId, accessKey, affiliateId, genreId }));
-    } catch (e) {
-      failures++; lastError = e;
-      console.warn(`ランキング取得に失敗 (genre=${genreId}): ${e.message}`);
-    }
-    await sleep(RATE_LIMIT_MS);
-  }
-
+  // 検索を先に回す。新ホストで確実に存在が確認できているのは検索のパスで、
+  // ランキングは種別ごとにパスが異なる可能性がある。先に検索で
+  // 有効なエンドポイントを確定させてから、ランキングを「あれば使う」扱いにする。
   for (const keyword of keywords) {
     if (pool.size >= poolSize) break;
     attempts++;
@@ -213,15 +207,34 @@ export async function collectCandidates(cfg) {
     await sleep(RATE_LIMIT_MS);
   }
 
+  for (const genreId of genreIds) {
+    if (pool.size >= poolSize || rankingUnavailable) break;
+    attempts++;
+    try {
+      add(await fetchRanking({ appId, accessKey, affiliateId, genreId }));
+    } catch (e) {
+      // ランキングのパスが無いだけなら、検索で候補が取れている限り致命傷ではない
+      if (/404|not found/i.test(e.message) && pool.size > 0) {
+        rankingUnavailable = true;
+        attempts--;   // 任意の呼び出しなので「全滅」の判定に数えない
+        console.warn('ランキングAPIが見つからないため、以後は検索のみで候補を集めます');
+        break;
+      }
+      failures++; lastError = e;
+      console.warn(`ランキング取得に失敗 (genre=${genreId}): ${e.message}`);
+    }
+    await sleep(RATE_LIMIT_MS);
+  }
+
   // 1件も成功していないなら設定の問題。ここで握り潰すと「条件に合う商品が
   // ありませんでした」という的外れな digest が毎朝届き続けることになる。
   if (attempts > 0 && failures === attempts) {
-    const hint = /applicationId/i.test(lastError?.message ?? '')
+    const hint = /applicationId|Resource not found|404/i.test(lastError?.message ?? '')
       ? '\n認証が通っていません。楽天APIは2026年に刷新され、次の3点が必要です:\n'
         + '  1) RAKUTEN_APP_ID      … アプリ情報画面の「アプリケーションID」（UUID形式）\n'
         + '  2) RAKUTEN_ACCESS_KEY  … 同画面の「アクセスキー」（pk_ で始まる）\n'
         + '  3) RAKUTEN_REFERER     … アプリ登録の Allowed websites と一致するURL\n'
-        + 'どのエンドポイントも通らない場合は、上のバージョン別ログを確認してください。'
+        + 'どのエンドポイントも通らない場合は、上のエンドポイント別ログを確認してください。'
       : '';
     throw new Error(`楽天APIへの${attempts}回の呼び出しがすべて失敗しました: ${lastError?.message}${hint}`);
   }
