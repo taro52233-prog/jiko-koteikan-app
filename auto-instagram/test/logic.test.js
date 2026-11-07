@@ -206,7 +206,7 @@ test('エンドポイントのバージョン候補を順に試し、通った�
 
   process.env.RAKUTEN_API_BASE = `http://127.0.0.1:${server.address().port}`;
   process.env.RAKUTEN_RATE_LIMIT_MS = '1';
-  process.env.RAKUTEN_API_VERSIONS = '20260701,20260401,20220601';
+  process.env.RAKUTEN_API_VERSIONS = '20260701,20220601';
   process.env.RAKUTEN_REFERER = 'https://github.com/example/repo';
   const { collectCandidates } = await import(`../src/research/rakuten.js?probe=${Date.now()}`);
 
@@ -217,8 +217,8 @@ test('エンドポイントのバージョン候補を順に試し、通った�
 
   assert.equal(items.length, 1, '生きている版で取得できる');
   const versions = hits.map((h) => h.path.split('/').pop());
-  assert.deepEqual(versions.slice(0, 3), ['20260701', '20260401', '20220601'], '候補を順に試す');
-  assert.ok(!versions.slice(3).includes('20260701'),
+  assert.deepEqual(versions.slice(0, 2), ['20260701', '20220601'], '候補を順に試す');
+  assert.ok(!versions.slice(2).includes('20260701'),
     '一度判明したら以後は古い候補を試し直さない');
   assert.equal(hits[0].accessKey, 'pk_test', 'accessKey を送っている');
   assert.equal(hits[0].referer, 'https://github.com/example/repo', 'Referer を送っている');

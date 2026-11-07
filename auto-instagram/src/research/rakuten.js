@@ -8,23 +8,45 @@
  */
 import { fetchJson, sleep } from '../util.js';
 
-// テストや社内プロキシ経由のために差し替え可能にしてある
-const API_BASE = process.env.RAKUTEN_API_BASE || 'https://app.rakuten.co.jp/services/api';
-
 /**
- * 楽天APIは2026年に刷新され、エンドポイントのバージョン日付が変わった。
- * 公式ドキュメントで確定版を確認できていないため、候補を順に試して
- * 最初に通ったものを採用し、どれが通ったかをログに残す。
- * 判明したら RAKUTEN_API_VERSIONS に1つだけ書いて固定するのが望ましい。
+ * 楽天APIは2026年にインフラごと刷新された。
+ *   ホスト : app.rakuten.co.jp/services/api → openapi.rakuten.co.jp/ichibams/api
+ *   認証   : applicationId のみ → applicationId + accessKey（pk_ で始まる）+ Referer
+ *   版     : 20220601 → 20260701
+ *
+ * 旧ホストに新しい版を投げると「doesn't have version」、
+ * 旧ホストに新しいIDを投げると「specify valid applicationId」になる。
+ * どちらの誤りも同じ 400 wrong_parameter で返るため切り分けが難しい。
+ * そこで (ホスト, 版) の組を順に試し、通った組をログに明示して以後は使い回す。
  */
-export const API_VERSION_CANDIDATES =
-  (process.env.RAKUTEN_API_VERSIONS || '20260701,20260401,20220601')
-    .split(',').map((v) => v.trim()).filter(Boolean);
+const DEFAULT_ENDPOINTS = [
+  'https://openapi.rakuten.co.jp/ichibams/api|20260701',
+  'https://openapi.rakuten.co.jp/ichibams/api|20220601',
+  'https://app.rakuten.co.jp/services/api|20220601',
+];
 
-const endpoint = (kind, version) => `${API_BASE}/IchibaItem/${kind}/${version}`;
+/** テスト・社内プロキシ用。指定されたらそのホストだけを使う */
+const BASE_OVERRIDE = process.env.RAKUTEN_API_BASE || '';
 
-/** 一度通ったバージョンはプロセス内で使い回す（毎回1番目から試さない） */
-let resolvedVersion = null;
+function parseEndpoints() {
+  if (BASE_OVERRIDE) {
+    const versions = (process.env.RAKUTEN_API_VERSIONS || '20260701,20220601')
+      .split(',').map((v) => v.trim()).filter(Boolean);
+    return versions.map((version) => ({ base: BASE_OVERRIDE, version }));
+  }
+  const raw = process.env.RAKUTEN_API_ENDPOINTS || DEFAULT_ENDPOINTS.join(',');
+  return raw.split(',').map((entry) => {
+    const [base, version] = entry.split('|').map((x) => x.trim());
+    return { base, version };
+  }).filter((e) => e.base && e.version);
+}
+
+export const ENDPOINT_CANDIDATES = parseEndpoints();
+
+const endpointUrl = ({ base, version }, kind) => `${base}/IchibaItem/${kind}/${version}`;
+
+/** 一度通った組はプロセス内で使い回す（毎回1番目から試さない） */
+let resolvedEndpoint = null;
 
 /** 楽天のサムネイルURLは ?_ex=128x128 が付く。投稿用に大きい版へ差し替える */
 export function upscaleImageUrl(url, size = 800) {
@@ -73,11 +95,11 @@ function requestInit() {
 /**
  * 1バージョンだけ叩く。成功したら Items を、失敗したら例外を投げる。
  */
-async function callVersion(kind, version, params, label) {
+async function callEndpoint(kind, ep, params, label) {
   const qs = new URLSearchParams(
     Object.entries(params).filter(([, v]) => v !== undefined && v !== null && v !== '')
   );
-  const body = await fetchJson(`${endpoint(kind, version)}?${qs}`, requestInit(), { label, retries: 1 });
+  const body = await fetchJson(`${endpointUrl(ep, kind)}?${qs}`, requestInit(), { label, retries: 1 });
   return Array.isArray(body.Items) ? body.Items : [];
 }
 
@@ -86,18 +108,21 @@ async function callVersion(kind, version, params, label) {
  * 既に判明していればそれだけを使う。全滅したら最後の例外を投げる。
  */
 async function call(kind, params, label) {
-  if (resolvedVersion) return callVersion(kind, resolvedVersion, params, label);
+  if (resolvedEndpoint) return callEndpoint(kind, resolvedEndpoint, params, label);
 
   let lastErr;
-  for (const version of API_VERSION_CANDIDATES) {
+  for (const ep of ENDPOINT_CANDIDATES) {
+    const tag = `${new URL(ep.base).host}@${ep.version}`;
     try {
-      const items = await callVersion(kind, version, params, `${label}@${version}`);
-      resolvedVersion = version;
-      console.log(`✅ 有効な楽天APIバージョン: ${version}（RAKUTEN_API_VERSIONS に固定すると以後の試行が省けます）`);
+      const items = await callEndpoint(kind, ep, params, `${label}[${tag}]`);
+      resolvedEndpoint = ep;
+      console.log(`✅ 有効なエンドポイント: ${ep.base}/IchibaItem/<種別>/${ep.version}`);
+      console.log('   RAKUTEN_API_ENDPOINTS にこの1組だけ指定すると、以後の試行が省けます:');
+      console.log(`   ${ep.base}|${ep.version}`);
       return items;
     } catch (e) {
       lastErr = e;
-      console.warn(`  バージョン ${version} は不可: ${String(e.message).slice(0, 200)}`);
+      console.warn(`  ${tag} は不可: ${String(e.message).slice(0, 200)}`);
     }
     await sleep(RATE_LIMIT_MS);
   }
