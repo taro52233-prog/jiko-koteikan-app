@@ -13,7 +13,16 @@ function bool(v, fallback = false) {
   if (v === undefined || v === '') return fallback;
   return ['1', 'true', 'yes', 'on'].includes(String(v).toLowerCase());
 }
+/**
+ * 数値の読み取り。
+ *
+ * 空文字を 0 と解釈しないことが重要。GitHub Actions は未設定の Variables を
+ * 空文字として渡してくるが、Number('') は 0 で、しかも Number.isFinite(0) は真。
+ * 素直に書くと「未設定 → 0」になり、価格の上下限が 0〜0円 になって全商品が
+ * 除外される、といった静かな事故になる（実際に起きた）。
+ */
 function num(v, fallback) {
+  if (v === undefined || v === null || String(v).trim() === '') return fallback;
   const n = Number(v);
   return Number.isFinite(n) ? n : fallback;
 }

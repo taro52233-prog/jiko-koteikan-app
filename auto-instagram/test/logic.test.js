@@ -260,3 +260,29 @@ test('ランキングが404でも、検索で候補が取れていれば続行�
   assert.equal(items[0].name, '検索で取れた商品');
   delete process.env.RAKUTEN_API_BASE;
 });
+
+test('未設定の数値設定（空文字）を0と解釈しない', async () => {
+  // GitHub Actions は未設定の Variables を空文字で渡す。
+  // Number('') は 0 かつ Number.isFinite(0) は真なので、素直に書くと
+  // 「価格 0〜0円」のような設定になり全商品が除外される。
+  const saved = { ...process.env };
+  Object.assign(process.env, {
+    RESEARCH_MIN_PRICE: '', RESEARCH_MAX_PRICE: '', RESEARCH_MIN_REVIEW_COUNT: '',
+    RESEARCH_POOL_SIZE: '  ', CONTENT_SLIDES: '',
+  });
+  const { config } = await import(`../src/config.js?empty=${Date.now()}`);
+
+  assert.equal(config.research.minPrice, 1000, '空文字なら既定値');
+  assert.equal(config.research.maxPrice, 30000);
+  assert.equal(config.research.minReviewCount, 20);
+  assert.equal(config.research.poolSize, 60, '空白のみも既定値');
+  assert.equal(config.content.slides, 5);
+
+  // 明示的な 0 は尊重する
+  process.env.RESEARCH_MIN_PRICE = '0';
+  const { config: c2 } = await import(`../src/config.js?zero=${Date.now()}`);
+  assert.equal(c2.research.minPrice, 0, '明示的な0は既定値で上書きしない');
+
+  for (const k of Object.keys(process.env)) if (!(k in saved)) delete process.env[k];
+  Object.assign(process.env, saved);
+});
