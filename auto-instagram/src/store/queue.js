@@ -6,6 +6,7 @@
  * の順序が必須で、1プロセスでは完結できない。キューがその継ぎ目になる。
  */
 import fs from 'node:fs';
+import { log, warn } from '../util.js';
 import path from 'node:path';
 
 const EMPTY = { version: 1, items: [] };
@@ -18,7 +19,7 @@ export class Queue {
     try {
       if (fs.existsSync(file)) q.data = { ...EMPTY, ...JSON.parse(fs.readFileSync(file, 'utf8')) };
     } catch (e) {
-      console.warn(`キューの読み込みに失敗したため空から開始します: ${e.message}`);
+      warn(`キューの読み込みに失敗したため空から開始します: ${e.message}`);
     }
     return q;
   }

@@ -6,7 +6,7 @@
  *  - 楽天は無料の Application ID だけで検索・ランキングが叩け、アフィリエイトIDも即日発行できる
  * Amazon を使いたい場合は同じ形の商品オブジェクトを返す provider を足せば差し替えられる。
  */
-import { fetchJson, sleep } from '../util.js';
+import { fetchJson, sleep, log, warn } from '../util.js';
 
 /**
  * 楽天APIは2026年にインフラごと刷新された。
@@ -127,13 +127,13 @@ async function call(kind, params, label) {
     try {
       const items = await callEndpoint(kind, ep, params, `${label}[${tag}]`);
       resolvedEndpoint = ep;
-      console.log(`✅ 有効なエンドポイント: ${ep.base}/IchibaItem/<種別>/${ep.version}`);
-      console.log('   RAKUTEN_API_ENDPOINTS にこの1組だけ指定すると、以後の試行が省けます:');
-      console.log(`   ${ep.base}|${ep.version}`);
+      log(`✅ 有効なエンドポイント: ${ep.base}/IchibaItem/<種別>/${ep.version}`);
+      log('   RAKUTEN_API_ENDPOINTS にこの1組だけ指定すると、以後の試行が省けます:');
+      log(`   ${ep.base}|${ep.version}`);
       return items;
     } catch (e) {
       lastErr = e;
-      console.warn(`  ${tag} は不可: ${String(e.message).slice(0, 200)}`);
+      warn(`  ${tag} は不可: ${String(e.message).slice(0, 200)}`);
     }
     await sleep(RATE_LIMIT_MS);
   }
@@ -205,16 +205,16 @@ async function diagnose({ appId, accessKey }) {
     { name: 'クエリ referer', init: {}, extra: { referer } },
   ];
 
-  console.warn('\n──────── 自己診断: Refererの渡し方を総当たり ────────');
+  warn('\n──────── 自己診断: Refererの渡し方を総当たり ────────');
   for (const v of variants) {
     const qs = new URLSearchParams(
       Object.entries({ ...common, ...v.extra }).filter(([, x]) => x !== undefined && x !== null && x !== ''));
     try {
       const res = await fetch(`${base}?${qs}`, { ...v.init, signal: AbortSignal.timeout(20000) });
       const text = (await res.text()).replace(/\s+/g, ' ').slice(0, 160);
-      console.warn(`  ${res.ok ? '✅' : '❌'} ${v.name}: HTTP ${res.status} ${text}`);
+      warn(`  ${res.ok ? '✅' : '❌'} ${v.name}: HTTP ${res.status} ${text}`);
     } catch (e) {
-      console.warn(`  ❌ ${v.name}: ${e.message}`);
+      warn(`  ❌ ${v.name}: ${e.message}`);
     }
     await sleep(RATE_LIMIT_MS);
   }
@@ -228,11 +228,11 @@ async function diagnose({ appId, accessKey }) {
       signal: AbortSignal.timeout(20000),
     });
     const text = (await res.text()).replace(/\s+/g, ' ').slice(0, 160);
-    console.warn(`  ${res.ok ? '✅' : '❌'} POST + requestContext.httpReferrer: HTTP ${res.status} ${text}`);
+    warn(`  ${res.ok ? '✅' : '❌'} POST + requestContext.httpReferrer: HTTP ${res.status} ${text}`);
   } catch (e) {
-    console.warn(`  ❌ POST + requestContext: ${e.message}`);
+    warn(`  ❌ POST + requestContext: ${e.message}`);
   }
-  console.warn('────────────────────────────────────────────────\n');
+  warn('────────────────────────────────────────────────\n');
 }
 
 export function checkAffiliateId(id) {
@@ -265,7 +265,7 @@ export async function collectCandidates(cfg) {
       add(await searchItems({ appId, accessKey, affiliateId, keyword, minPrice, maxPrice }));
     } catch (e) {
       failures++; lastError = e;
-      console.warn(`検索に失敗 (${keyword}): ${e.message}`);
+      warn(`検索に失敗 (${keyword}): ${e.message}`);
     }
     await sleep(RATE_LIMIT_MS);
   }
@@ -280,11 +280,11 @@ export async function collectCandidates(cfg) {
       if (/404|not found/i.test(e.message) && pool.size > 0) {
         rankingUnavailable = true;
         attempts--;   // 任意の呼び出しなので「全滅」の判定に数えない
-        console.warn('ランキングAPIが見つからないため、以後は検索のみで候補を集めます');
+        warn('ランキングAPIが見つからないため、以後は検索のみで候補を集めます');
         break;
       }
       failures++; lastError = e;
-      console.warn(`ランキング取得に失敗 (genre=${genreId}): ${e.message}`);
+      warn(`ランキング取得に失敗 (genre=${genreId}): ${e.message}`);
     }
     await sleep(RATE_LIMIT_MS);
   }
@@ -310,9 +310,9 @@ export async function collectCandidates(cfg) {
   // という静かな失敗になる。実際に affiliateUrl が返ってきたかで最終確認する。
   const check = checkAffiliateId(affiliateId);
   if (!check.ok) {
-    console.warn(`⚠️ RAKUTEN_AFFILIATE_ID: ${check.reason}`);
+    warn(`⚠️ RAKUTEN_AFFILIATE_ID: ${check.reason}`);
   } else if (items.length && !items.some((i) => i.url?.includes('hb.afl.rakuten.co.jp'))) {
-    console.warn(
+    warn(
       '⚠️ アフィリエイトIDを渡したのに、楽天からアフィリエイトリンクが返ってきていません。\n' +
       '   IDが誤っている可能性があります。このまま投稿しても報酬は発生しません。');
   }

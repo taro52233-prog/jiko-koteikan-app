@@ -5,7 +5,7 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
-import { jstDateKey, nowJst } from '../util.js';
+import { jstDateKey, nowJst, log, warn } from '../util.js';
 
 const EMPTY = { version: 1, posts: [] };
 
@@ -20,7 +20,7 @@ export class History {
     try {
       if (fs.existsSync(file)) h.data = { ...EMPTY, ...JSON.parse(fs.readFileSync(file, 'utf8')) };
     } catch (e) {
-      console.warn(`履歴の読み込みに失敗したため空から開始します: ${e.message}`);
+      warn(`履歴の読み込みに失敗したため空から開始します: ${e.message}`);
     }
     return h;
   }

@@ -72,10 +72,23 @@ export function normalize(value, min, max) {
   return Math.min(1, Math.max(0, (value - min) / (max - min)));
 }
 
+/**
+ * テスト実行中はログを抑止する。
+ *
+ * node:test は子プロセスの標準出力を独自プロトコルで親に送る。大量の出力、
+ * とりわけマルチバイト文字を流すとこのストリームが壊れ、
+ * 「Unable to deserialize cloned data」でテストファイルごと落ちることがある
+ * （実際に4回に1回ほど落ちていた）。本番の挙動には影響しない。
+ * テスト中のログを見たいときは VERBOSE_TEST_LOGS=1 を付ける。
+ */
+const QUIET = !!process.env.NODE_TEST_CONTEXT && !process.env.VERBOSE_TEST_LOGS;
+
 export function log(...args) {
+  if (QUIET) return;
   console.log(`[${new Date().toISOString()}]`, ...args);
 }
 
 export function warn(...args) {
+  if (QUIET) return;
   console.warn(`[${new Date().toISOString()}] WARN`, ...args);
 }

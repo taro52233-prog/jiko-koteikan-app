@@ -11,6 +11,7 @@
  * つまり嘘をつくのではなく、本当の体験を書きやすくする方向で解いている。
  */
 import fs from 'node:fs';
+import { log, warn } from '../util.js';
 
 export class OwnedItems {
   constructor(items = []) { this.items = items; }
@@ -33,7 +34,7 @@ export class OwnedItems {
         }));
       return new OwnedItems(items);
     } catch (e) {
-      console.warn(`所有商品リストの読み込みに失敗: ${e.message}`);
+      warn(`所有商品リストの読み込みに失敗: ${e.message}`);
       return new OwnedItems();
     }
   }
