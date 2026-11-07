@@ -368,9 +368,33 @@ export async function roomDigest({ dryRun = false } = {}) {
     log(`候補 ${pool.length} 件`);
   }
 
-  const { picked } = pool.length
+  const { picked, rejected } = pool.length
     ? selectItems(pool, research, history, wanted, config.research.scoringProfile)
-    : { picked: [] };
+    : { picked: [], rejected: [] };
+
+  // 候補を集められたのに1件も選べない場合、絞り込み条件が厳しいのか、
+  // APIのレスポンス形式が変わって項目が読めていないのかを切り分けられないと直せない。
+  // 落ちた理由の内訳と、実際に読み取れた値のサンプルを出す。
+  if (!picked.length && pool.length) {
+    const tally = new Map();
+    for (const r of rejected) {
+      for (const reason of r.reasons) {
+        const key = reason.replace(/\s*\(.*\)$/, '');
+        tally.set(key, (tally.get(key) ?? 0) + 1);
+      }
+    }
+    warn(`候補 ${pool.length} 件すべてが除外されました。内訳:`);
+    for (const [reason, n] of [...tally].sort((a, b) => b[1] - a[1])) {
+      warn(`    ${n} 件  ${reason}`);
+    }
+    const sample = pool[0];
+    warn('  読み取れた値のサンプル（1件目）:');
+    warn(`    name=${JSON.stringify(sample.name).slice(0, 60)} price=${sample.price} ` +
+         `reviewCount=${sample.reviewCount} reviewAverage=${sample.reviewAverage} ` +
+         `images=${sample.images.length} shopCode=${JSON.stringify(sample.shopCode)}`);
+    warn(`  現在の絞り込み: 価格 ${research.minPrice}〜${research.maxPrice}円 / ` +
+         `レビュー${research.minReviewCount}件以上 / 評価${research.minReviewAverage}以上`);
+  }
 
   for (const item of picked.slice(0, shortfall)) {
     try {
