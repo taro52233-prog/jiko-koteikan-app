@@ -20,7 +20,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { cleanCaption } from './prompt.js';
 import { buildStyleSection, resolveStyle, loadStyleSamples, DEFAULT_STYLE } from './style.js';
-import { log } from '../util.js';
+import { log, warn } from '../util.js';
 
 const COMMON_RULES = `【絶対に守るルール】
 1. 与えられた商品データにある事実だけを書く。スペック・成分・産地・受賞歴を推測で補わない。
@@ -173,6 +173,29 @@ export const ROOM_SCHEMA = {
  * pain-first のときだけ「使用・所有を主張する表現」を落とす。
  * owned のときは本人が実際に使っているので、そのまま通す。
  */
+/**
+ * variants を配列に揃える。
+ *
+ * LLM は構造化出力を強制していても、稀に配列であるべき項目を
+ * {"0": {...}, "1": {...}} のようなオブジェクトで返す。
+ * ここで [] に落とすと例外は消えるが、3パターンまるごと黙って失われる
+ * （実際にそうなった）。中身があるなら値を取り出して救う。
+ */
+function toArray(v, label) {
+  if (Array.isArray(v)) return v;
+  if (v && typeof v === 'object') {
+    const values = Object.values(v);
+    if (values.length) {
+      warn(`${label} が配列ではなくオブジェクトで返されたため、値を取り出して復元しました`);
+      return values;
+    }
+  }
+  if (v !== undefined && v !== null && v !== '') {
+    warn(`${label} を配列として解釈できませんでした: ${JSON.stringify(v).slice(0, 80)}`);
+  }
+  return [];
+}
+
 export function sanitizeRoom(draft, {
   maxChars, hashtagCount, disclosureRequired, disclosureText, owned = false, register = 'polite',
 }) {
@@ -186,9 +209,9 @@ export function sanitizeRoom(draft, {
   // 断定の完了形（使っていないのに結果を報告する形）
   const claimsResult = /(変わりました|なくなりました|解決しました|楽になりました|快適になりました)/g;
 
-  // LLM が variants を配列以外（オブジェクト等）で返すことがある。
-  // `?? []` は null/undefined しか拾わないので .map が落ちる（実際に落ちた）。
-  out.variants = (Array.isArray(out.variants) ? out.variants : []).map((v) => {
+  out.variants = toArray(out.variants, 'variants')
+    .filter((v) => v && typeof v === 'object')
+    .map((v) => {
     let text = String(v.text ?? '')
       .replace(banned, '')
       .replace(fakeQuote, 'レビュー件数を見るかぎり');
@@ -207,7 +230,7 @@ export function sanitizeRoom(draft, {
   }).filter((v) => v.text);
 
   const seen = new Set();
-  out.hashtags = (Array.isArray(out.hashtags) ? out.hashtags : [])
+  out.hashtags = toArray(out.hashtags, 'hashtags').filter((t) => typeof t === 'string' || typeof t === 'number')
     .map((t) => `#${String(t).replace(/^#+/, '').replace(/[\s#]/g, '')}`)
     .filter((t) => t.length > 1 && !seen.has(t) && seen.add(t))
     .slice(0, hashtagCount);

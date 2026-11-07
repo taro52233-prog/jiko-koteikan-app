@@ -23,13 +23,13 @@ export function sanitize(draft, { item, maxHashtags, disclosureRequired, disclos
     .trim();
   out.hook.title = strip(out.hook.title);
   out.hook.sub = strip(out.hook.sub);
-  out.slides = (Array.isArray(out.slides) ? out.slides : []).map((s) => ({ title: strip(s.title), body: strip(s.body) }));
+  out.slides = (Array.isArray(out.slides) ? out.slides : Object.values(out.slides ?? {})).filter((x) => x && typeof x === 'object').map((s) => ({ title: strip(s.title), body: strip(s.body) }));
   out.cta = { title: strip(out.cta.title), body: strip(out.cta.body) };
   out.caption = strip(out.caption);
 
   // 2. ハッシュタグの正規化（Instagram の上限は30個）
   const seen = new Set();
-  out.hashtags = (Array.isArray(out.hashtags) ? out.hashtags : [])
+  out.hashtags = (Array.isArray(out.hashtags) ? out.hashtags : Object.values(out.hashtags ?? {}))
     .map((t) => `#${String(t).replace(/^#+/, '').replace(/[\s#]/g, '')}`)
     .filter((t) => t.length > 1 && !seen.has(t) && seen.add(t))
     .slice(0, Math.min(30, maxHashtags));

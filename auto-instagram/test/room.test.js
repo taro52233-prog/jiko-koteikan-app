@@ -448,12 +448,24 @@ test('ハッシュタグ0指定なら1つも付けない', () => {
   assert.ok(!out.variants[0].posting.includes('#タンブラー'));
 });
 
-test('variants が配列でなくても落ちない（LLMが形を崩すことがある）', () => {
-  // `?? []` は null/undefined しか拾わないため、オブジェクトが来ると .map で落ちる。
-  // 本番で実際にこれで1件分の生成が失敗した。
-  for (const broken of [{ '0': { angle: 'a', text: 'b' } }, 'まとめて1本の文字列', 42, null, undefined]) {
+test('variants がオブジェクトで返ってきたら捨てずに復元する', () => {
+  // LLM は稀に配列を {"0":{...},"1":{...}} の形で返す。
+  // ここで [] に落とすと例外は消えるが3パターンまるごと黙って消える（実際に消えた）。
+  const out = sanitizeRoom({
+    variants: { '0': { angle: '変な使い方', text: 'これ枕になる' },
+                '1': { angle: '値段', text: '1680円だった' } },
+    hashtags: { '0': 'タンブラー' },
+  }, { ...roomOpts, hashtagCount: 5 });
+
+  assert.equal(out.variants.length, 2, 'オブジェクトの値を取り出して復元する');
+  assert.equal(out.variants[0].text, 'これ枕になる');
+  assert.deepEqual(out.hashtags, ['#タンブラー']);
+});
+
+test('variants が解釈不能でも落ちない', () => {
+  for (const broken of ['まとめて1本の文字列', 42, null, undefined, {}, []]) {
     const out = sanitizeRoom({ variants: broken, hashtags: broken }, roomOpts);
-    assert.ok(Array.isArray(out.variants), `variants が配列になる: ${JSON.stringify(broken)}`);
+    assert.ok(Array.isArray(out.variants), `配列になる: ${JSON.stringify(broken)}`);
     assert.ok(Array.isArray(out.hashtags));
   }
 });
