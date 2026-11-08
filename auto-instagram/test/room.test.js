@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { upcomingEvents, todaysPlan, LEAD_DAYS, ymd } from '../src/room/calendar.js';
 import { RoomLog, rankProgress, postingStreak, nextAction, ORIGINAL_PHOTO_TARGET } from '../src/room/rank.js';
-import { sanitizeRoom, normalizeRoomDraft, ROOM_SCHEMA } from '../src/content/room.js';
+import { sanitizeRoom, normalizeRoomDraft, ROOM_SCHEMA, buildRoomPrompt } from '../src/content/room.js';
 import { selectKaimawari, scoreItem, PROFILES } from '../src/research/score.js';
 import { buildDigest, LOG_MARKERS } from '../src/room/digest.js';
 import { OwnedItems } from '../src/store/owned.js';
@@ -589,4 +589,44 @@ test('スキーマは3パターンを入れ子にしない', () => {
     assert.equal(props[key].type, 'string', key);
     assert.ok(ROOM_SCHEMA.required.includes(key), `${key} は必須`);
   }
+});
+
+test('同じ書き出しが2本以上あることを検出する', () => {
+  const out = sanitizeRoom({
+    hashtags: [],
+    variants: [
+      { angle: 'a', text: 'え、突っ張り棒って白いやつしか知らなかったけど、こんなのあったのか…。' },
+      { angle: 'b', text: 'え、バスマットって無地だと思ってたけど、柄もあったのか…。' },
+      { angle: 'c', text: '1680円。これで枕にもなるらしい。' },
+    ],
+  }, roomOpts);
+  assert.equal(out.templatedCount, 2);
+  assert.equal(out.variants[2].templated, false);
+});
+
+test('レビュー件数・平均点の引用を検出する', () => {
+  const out = sanitizeRoom({
+    hashtags: [],
+    variants: [
+      { angle: 'a', text: 'レビュー2万9千件超えてるの見て、もらって困らない系なんだと納得した。' },
+      { angle: 'b', text: '平均4.57って数字、見つけた時ちょっと二度見した。' },
+      { angle: 'c', text: '内側がセラミックコーティングって初めて見た。' },
+    ],
+  }, roomOpts);
+  assert.equal(out.citesReviewCount, 2);
+  assert.equal(out.variants[2].citesReview, false, '発見の文は引っかからない');
+});
+
+test('イベント文脈は日付と日数の両方を渡し、お得訴求を禁じる', () => {
+  const prompt = buildRoomPrompt({
+    item: {
+      name: 'テスト商品', price: 1000, shopName: 'shop',
+      reviewCount: 10, reviewAverage: 4.5, caption: '説明',
+    },
+    persona: 'p', maxChars: 120, hashtagCount: 0, styleSection: 's',
+    event: { label: '0と5のつく日', date: '2026-11-10', daysUntil: 2, strategy: 'x' },
+  });
+  assert.ok(prompt.includes('11/10（2日後）'), prompt.slice(0, 400));
+  assert.ok(prompt.includes('「お得」'), 'お得訴求の禁止が入っている');
+  assert.ok(prompt.includes('レビュー件数と平均点を本文に書かない'));
 });

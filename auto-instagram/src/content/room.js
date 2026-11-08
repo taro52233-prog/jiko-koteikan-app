@@ -103,11 +103,18 @@ export const ROOM_SYSTEM_PROMPT = `あなたは楽天ROOMで商品を紹介す�
 ${COMMON_RULES}`;
 
 export function buildRoomPrompt({ item, persona, maxChars, event, hashtagCount, owned, styleSection }) {
+  // 日数だけを渡すと「2日後0と5のつく日で」のように助詞が落ちた硬い文になるので、
+  // 日付も一緒に渡して自然に書けるようにする。日付は自分で数え直させない。
+  const eventDate = event?.date ? `${Number(event.date.slice(5, 7))}/${Number(event.date.slice(8, 10))}` : '';
   const eventLine = event
-    ? `\n【イベント文脈】\n${event.label}が${event.daysUntil === 0 ? '本日' : `${event.daysUntil}日後`}にあります。\n`
-      + `日数に触れるなら「${event.daysUntil}日後」という表記をそのまま使ってください。自分で数え直さないこと。\n`
+    ? `\n【イベント文脈】\n${event.label}は ${eventDate}（${event.daysUntil === 0 ? '本日' : `${event.daysUntil}日後`}）です。\n`
+      + `日付に触れるなら「${eventDate}」または「${event.daysUntil === 0 ? '今日' : `${event.daysUntil}日後`}」と書いてください。自分で数え直さないこと。\n`
       + `${event.strategy}\n`
-      + `3パターンのうち1つは、このイベントに触れた切り口にしてください（「${event.label}で」程度の自然な触れ方に留めること）。`
+      + `3パターンのうち1つは、このイベントに触れてかまいません。ただし触れるのは\n`
+      + `**日付がある、という事実だけ**です。「お得」「得する」「安く買える」「買い時」のように\n`
+      + `得だと説明するのは売り込みになるので書かないでください。\n`
+      + `× 「日用品っていつ買っても同じだと思ってたけど、タイミング合わせるとちょっと得なんだな」\n`
+      + `○ 「${eventDate}に${event.label}くるんだった、覚えとこ」`
     : '';
 
   return `以下の商品について、楽天ROOMのコメント（紹介文）を3パターン作ってください。
@@ -130,8 +137,14 @@ ${styleSection}
 【紹介文の条件】
 - 各パターン ${maxChars}文字以内。改行は1回まで。
 - 3パターンは**書き出しの型も切り口も変える**。同じ内容の言い換えは失敗です。
-  例: 1本目は商品名から入って変な使い方の話、2本目は値段と買うタイミングの話、
-      3本目は見た目や欠点に触れる話、のように毎回ちがう角度から入る。
+- 「え、〇〇って△△だと思ってたけど、〜あったのか…。」の型を使うのは **3本のうち1本だけ**。
+  残る2本は別の入り方にしてください（商品名から／値段から／変な観察から／自分ならこう使う、など）。
+  毎日の投稿が同じ書き出しで並ぶと、読み手にはテンプレだと一目で分かります。
+- **レビュー件数と平均点を本文に書かない**。
+  「レビュー2万件超えてるの見て納得した」「平均4.57って数字で二度見した」は、
+  数字を持ってきて褒める形で、商品説明の読み上げと同じです。
+  件数は投稿画面の商品カードに既に出ています。本文の60〜70文字は、
+  **自分が何に気づいたか**だけに使ってください。
 - **3本とも語尾を「〜そう」で終わらせない**。揃うと機械が書いたように見えます。
 ${eventLine}
 
@@ -298,6 +311,18 @@ export function sanitizeRoom(draft, {
    * この文体では最も広告くさくなる。プロンプトで禁じても出てくるので機械でも見る。
    */
   const salesy = /(カートに入れっぱなし|カート入れっぱなし|ぽちるか迷|買うか迷|買うか悩|購入を迷|購入を悩|様子見中|決めようかな|買うならこのタイミング)/;
+  /**
+   * 「え、〇〇って…だと思ってたけど」の型。
+   * この型自体は効くので禁止しないが、3本とも同じだとテンプレに見える。
+   * 1本に収まっているかを数えるために印をつける。
+   */
+  const sameOpening = /(^え[、,]|と思って(た|いた)けど|しか知らなかったけど)/;
+  /**
+   * レビュー件数・平均点を本文に持ち込む形。
+   * 数字を根拠に褒める＝商品説明の読み上げなので、発見の文にはならない。
+   * 件数は投稿画面の商品カードに出ているため、本文では重複でもある。
+   */
+  const citesReview = /(レビュー|口コミ)[^。]{0,24}(\d|万|件)|(\d|万)[^。]{0,8}件[^。]{0,16}(レビュー|口コミ|評価)|平均\s?\d[.．]\d/;
   const fakeQuote = /(口コミ(に?よる|では|を見ると)|レビュー(に?よる|では|を見ると))/g;
   // 未所有の商品で「使った」と言い切る表現。owned のときは適用しない
   const claimsUse = /(愛用して(います|いる|る)|リピートして(います|いる|る)|使ってみたところ|使ってみたら|使ってみて|届きました|届いて|買ってよかった|試してみたら)/g;
@@ -309,7 +334,7 @@ export function sanitizeRoom(draft, {
     .map((v) => {
     let text = String(v.text ?? '')
       .replace(banned, '')
-      .replace(fakeQuote, 'レビュー件数を見るかぎり');
+      .replace(fakeQuote, '見たかぎり');
 
     if (!owned) {
       // 言い換えは文体に合わせる。丁寧語の置換を砕けた文に混ぜると継ぎ目が目立つ
@@ -321,9 +346,15 @@ export function sanitizeRoom(draft, {
     text = text.replace(/[ \t]{2,}/g, ' ').trim();
     const isSalesy = salesy.test(text);
     if (isSalesy) warn(`購入検討をにおわせる言い回しが残っています: ${text.slice(0, 40)}`);
+    const isTemplated = sameOpening.test(text);
+    const isCitingReview = citesReview.test(text);
+    if (isCitingReview) warn(`レビュー件数・平均点が本文に入っています: ${text.slice(0, 40)}`);
     // 楽天ROOMのコメント欄は長文が折り返されて読まれないため、必ず上限内に収める
     if (text.length > maxChars) text = `${text.slice(0, maxChars - 1)}…`;
-    return { angle: String(v.angle ?? '').trim(), text, chars: text.length, owned, salesy: isSalesy };
+    return {
+      angle: String(v.angle ?? '').trim(), text, chars: text.length, owned,
+      salesy: isSalesy, templated: isTemplated, citesReview: isCitingReview,
+    };
   }).filter((v) => v.text);
 
   const seen = new Set();
@@ -359,8 +390,10 @@ export function sanitizeRoom(draft, {
     reply: String(tp.reply ?? 'ここのです').replace(/https?:\/\/\S+/g, '').trim().slice(0, 12),
   };
 
-  // 過半数が売り込み調なら作り直す価値がある（呼び出し側が判断する）
+  // 作り直す価値があるかを呼び出し側が判断するための数
   out.salesyCount = out.variants.filter((v) => v.salesy).length;
+  out.templatedCount = out.variants.filter((v) => v.templated).length;
+  out.citesReviewCount = out.variants.filter((v) => v.citesReview).length;
 
   out.scenePrompt = String(out.scenePrompt ?? '').trim();
   // 旧フィールド名との互換（digest が pain を参照している）
@@ -446,10 +479,22 @@ export async function generateRoomComment(item, cfg, { event = null, owned = nul
       warn(`紹介文が空で返ったため作り直します (${attempt}/2): ${item.name.slice(0, 30)}`);
       continue;
     }
-    // 過半数が「カートに入れっぱなし」調なら、選べる案が残らないので作り直す
-    if (out.salesyCount * 2 > out.variants.length && attempt === 1) {
-      warn(`${out.variants.length}本中${out.salesyCount}本が購入検討調のため作り直します: ${item.name.slice(0, 30)}`);
-      continue;
+    if (attempt === 1) {
+      // 過半数が「カートに入れっぱなし」調なら、選べる案が残らないので作り直す
+      if (out.salesyCount * 2 > out.variants.length) {
+        warn(`${out.variants.length}本中${out.salesyCount}本が購入検討調のため作り直します: ${item.name.slice(0, 30)}`);
+        continue;
+      }
+      // 「え、〜と思ってたけど」が2本以上。毎日の投稿が同じ書き出しで並ぶのを避ける
+      if (out.templatedCount >= 2 && out.variants.length >= 2) {
+        warn(`${out.variants.length}本中${out.templatedCount}本が同じ書き出しのため作り直します: ${item.name.slice(0, 30)}`);
+        continue;
+      }
+      // レビュー件数を根拠に褒める形が過半数
+      if (out.citesReviewCount * 2 > out.variants.length) {
+        warn(`${out.variants.length}本中${out.citesReviewCount}本がレビュー件数の引用のため作り直します: ${item.name.slice(0, 30)}`);
+        continue;
+      }
     }
     return out;
   }
