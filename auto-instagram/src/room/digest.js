@@ -82,13 +82,21 @@ function candidateSection(candidates) {
       ['```', v.posting, content.hashtags.join(' '), '```'].join('\n'),
     ));
 
+    const threads = content.threadsPost?.parent
+      ? paragraphs(
+          '**Threads / X に出すなら**（親投稿にはリンクを置かず、リプライに添える）',
+          ['```', content.threadsPost.parent, '```'].join('\n'),
+          `↳ 自分へのリプライ: \`${content.threadsPost.reply}\` ＋ 商品リンク`,
+        )
+      : '';
+
     return paragraphs(
       `#### ${i + 1}. ${item.name}`,
       item.images?.[0] ? `<img src="${item.images[0]}" width="220">` : '',
       `${yen(item.price)}　★${item.reviewAverage}（${item.reviewCount.toLocaleString('ja-JP')}件）　${item.shopName}`,
       `🔗 [楽天ROOMに追加する](${item.url})`,
       [
-        content.pain ? `> **ペイン**: ${content.pain}` : '',
+        content.pain ? `> **着眼点**: ${content.pain}` : "",,
         `> **狙い**: ${content.benefit}`,
         `> **刺さる相手**: ${content.targetPersona}`,
         content.writingMode === 'owned'
@@ -96,6 +104,7 @@ function candidateSection(candidates) {
           : '> ⚪️ ペインファースト（未所有のため使用体験は書いていません）',
       ].filter(Boolean).join('\n'),
       variants,
+      threads,
     );
   });
 

@@ -487,3 +487,39 @@ test('紹介文が空の候補は digest に出さない（商品名だけ並ぶ
   assert.ok(body.includes('紹介文の生成に失敗しました'), '黙って空にせず理由を出す');
   assert.ok(body.includes('明朝の実行時に生成されます'), '夜のセクションも落ちない');
 });
+
+test('実投稿は .txt にそのまま貼れる（JSONのエスケープを要求しない）', async () => {
+  const { loadStyleSamples } = await import('../src/content/style.js');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'style-'));
+  const json = path.join(dir, 'style-samples.json');
+  fs.writeFileSync(json, JSON.stringify({ profile: 'casual-diary', samples: ['JSON側に入れてある例の投稿'] }));
+  fs.writeFileSync(path.join(dir, 'style-samples.txt'),
+    '# これはコメント\n貼り付けた実投稿その1 改行も"引用符"もそのままでいい\n---\n貼り付けた実投稿その2 https://example.com #タグ\n');
+
+  const { profile, samples } = loadStyleSamples(json);
+  fs.rmSync(dir, { recursive: true, force: true });
+
+  assert.equal(profile, 'casual-diary');
+  assert.equal(samples.length, 3, 'txt の2本と json の1本が合わさる');
+  assert.ok(samples[0].includes('その1'), '手で貼った実投稿を先に置く');
+  assert.ok(!samples[0].includes('これはコメント'), '# の行は無視する');
+  assert.ok(samples[1].includes('その2'));
+});
+
+test('Threads用の親投稿からはURLを落とす（リンクはリプライ側に置くため）', () => {
+  const out = sanitizeRoom({
+    variants: [{ angle: 'a', text: 'いい感じ' }],
+    hashtags: [],
+    threadsPost: { parent: 'え、こんなのあったのか…。 https://item.rakuten.co.jp/x/', reply: 'ここのです' },
+  }, roomOpts);
+
+  assert.ok(!out.threadsPost.parent.includes('http'), '親投稿にURLを残さない');
+  assert.ok(out.threadsPost.parent.startsWith('え、'));
+  assert.equal(out.threadsPost.reply, 'ここのです');
+});
+
+test('Threads用の出力が無くても落ちない', () => {
+  const out = sanitizeRoom({ variants: [{ angle: 'a', text: 'x' }], hashtags: [] }, roomOpts);
+  assert.equal(out.threadsPost.parent, '');
+  assert.equal(out.threadsPost.reply, 'ここのです', '既定の一言を置く');
+});

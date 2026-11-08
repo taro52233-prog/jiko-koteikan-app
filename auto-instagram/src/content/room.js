@@ -156,6 +156,29 @@ export const ROOM_SCHEMA = {
       },
     },
     hashtags: { type: 'array', items: { type: 'string' } },
+    threadsPost: {
+      type: 'object',
+      description:
+        'Threads / X 用の2段構成。親投稿にはリンクも商品名も置かず、写真と自分の驚きだけを書き、'
+        + 'リンクは自分へのリプライに短く添える。タイムラインで広告に見えず、'
+        + '親投稿にリンクが無いぶんリーチも落ちにくい。',
+      properties: {
+        parent: {
+          type: 'string',
+          description:
+            '親投稿の本文。**商品名もリンクも書かない**。写真と一緒に読まれる前提で、'
+            + '自分が知らなかったことが更新された瞬間を書く。60〜100文字。'
+            + '例: 「え、正直ニトリやダイソーの白い突っ張り棒しか知らなかったけど、こんなインテリアに馴染むのあったのか…。」',
+        },
+        reply: {
+          type: 'string',
+          description:
+            'リンクに添える一言だけ。10文字以内。売り込まない。'
+            + '例: 「ここのです」「これです」「これ」',
+        },
+      },
+      required: ['parent', 'reply'],
+    },
     scenePrompt: {
       type: 'string',
       description:
@@ -165,7 +188,7 @@ export const ROOM_SCHEMA = {
         + '例: "A quiet Japanese bathroom in soft morning light, bare feet stepping onto a dry mat, minimal and clean."',
     },
   },
-  required: ['hook', 'benefit', 'targetPersona', 'variants', 'hashtags', 'scenePrompt'],
+  required: ['hook', 'benefit', 'targetPersona', 'variants', 'hashtags', 'threadsPost', 'scenePrompt'],
 };
 
 /**
@@ -254,6 +277,13 @@ export function sanitizeRoom(draft, {
       : v.text,
   }));
   out.disclosed = !!disclosureRequired;
+
+  // Threads/X 用の2段構成。親投稿に商品名やURLが混ざっていたら落とす
+  const tp = out.threadsPost ?? {};
+  out.threadsPost = {
+    parent: String(tp.parent ?? '').replace(/https?:\/\/\S+/g, '').replace(/[ \t]{2,}/g, ' ').trim(),
+    reply: String(tp.reply ?? 'ここのです').replace(/https?:\/\/\S+/g, '').trim().slice(0, 12),
+  };
 
   out.scenePrompt = String(out.scenePrompt ?? '').trim();
   // 旧フィールド名との互換（digest が pain を参照している）

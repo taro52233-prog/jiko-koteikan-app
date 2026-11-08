@@ -39,6 +39,11 @@ export const STYLE_PRESETS = {
   a) 商品名をそのまま置く  … 「セリアの熱圧着パウチ容器」「砂糖不使用と選べる2個セット送料込み」
   b) 感情を先に出す        … 「これー！！！買った！！！！」「まじでまじでまじで」
   c) 変な観察から入る      … 「リュックにネギさしてる後ろ姿の写真とかあるんだけど」
+  f) 自分の無知を先に出す  … 「え、正直ニトリやダイソーの白い突っ張り棒しか知らなかったけど、
+                             こんなインテリアに馴染むのあったのか…。」
+     ※これが一番強い型です。読み手も同じ前提を持っているので、
+       その前提が更新される瞬間を書くと刺さります。
+       「え、」で始めて「…。」で余韻を残し、言い切らないのがコツ。
   d) 自分の使い方を言う    … 「アクセサリーポーチとしても使ってる」
   e) 値段や条件を素で置く  … 「買ったのこれ⬇︎1680円。」
 
@@ -56,6 +61,11 @@ export const STYLE_PRESETS = {
 - 主語（私は・この商品は）はほぼ省略する。読み手に呼びかけない（「皆さん」「あなた」禁止）。
 - 擬音や崩しを使ってよい  「首イタ──ってなって」「ドカドカいれて」「滑らか~~な」「ビリっと」
 - 感嘆符の連打、「まじで」の重ねもOK。ただし全パターンでやらない。
+
+■ 商品名は出さなくてよい
+実際の投稿には、本文で商品名を一度も出さないものがあります
+（「こんなインテリアに馴染むのあったのか…。」だけで、商品名はリンク側）。
+商品名を言わないほうが広告に見えません。無理に入れないでください。
 
 ■ 絶対に避けること
 - **「〜そう」「〜かも」で3パターンとも終わらせる**。語尾が揃うと途端に機械くさくなります。
@@ -99,19 +109,49 @@ export const DEFAULT_STYLE = 'casual-diary';
  * data/style-samples.json を読む。
  * 形式: { "profile": "casual-diary", "samples": ["投稿本文", ...] }
  */
-export function loadStyleSamples(file) {
+/** 文体の材料にならない短すぎるものを落とし、上限で切る */
+function tidySamples(list) {
+  return list
+    .map((s) => String(s ?? '').trim())
+    .filter((s) => s.length >= 10)
+    .slice(0, 20);   // 多すぎてもトークンを食うだけ
+}
+
+/**
+ * 同じ場所にある .txt から追加のサンプルを読む。
+ *
+ * JSON は引用符と改行のエスケープが要るので、スマホから投稿を貼るのが苦痛になる。
+ * 実投稿をそのまま貼れるように、--- の行で区切るだけのプレーンテキストも受ける。
+ * # で始まる行はコメントとして無視する。
+ */
+function loadTextSamples(jsonFile) {
+  const txt = jsonFile.replace(/\.json$/, '.txt');
   try {
-    if (!fs.existsSync(file)) return { profile: null, samples: [] };
-    const raw = JSON.parse(fs.readFileSync(file, 'utf8'));
-    const samples = (raw.samples ?? [])
-      .map((s) => String(s ?? '').trim())
-      .filter((s) => s.length >= 10)   // 短すぎるものは文体の材料にならない
-      .slice(0, 12);                   // 多すぎてもトークンを食うだけ
-    return { profile: raw.profile ?? null, samples };
+    if (!fs.existsSync(txt)) return [];
+    return fs.readFileSync(txt, 'utf8')
+      .split(/^\s*-{3,}\s*$/m)
+      .map((block) => block.split('\n').filter((l) => !l.startsWith('#')).join('\n').trim())
+      .filter(Boolean);
+  } catch (e) {
+    warn(`文体サンプル(.txt)の読み込みに失敗: ${e.message}`);
+    return [];
+  }
+}
+
+export function loadStyleSamples(file) {
+  let profile = null;
+  let fromJson = [];
+  try {
+    if (fs.existsSync(file)) {
+      const raw = JSON.parse(fs.readFileSync(file, 'utf8'));
+      profile = raw.profile ?? null;
+      fromJson = raw.samples ?? [];
+    }
   } catch (e) {
     warn(`文体サンプルの読み込みに失敗: ${e.message}`);
-    return { profile: null, samples: [] };
   }
+  // .txt を先に置く。手で貼った実投稿のほうが、こちらが用意した例より信頼できる
+  return { profile, samples: tidySamples([...loadTextSamples(file), ...fromJson]) };
 }
 
 /** 実サンプルからURL・ハッシュタグ・メンションを落とす（文体だけを見せたい） */
