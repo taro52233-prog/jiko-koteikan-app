@@ -421,14 +421,18 @@ test('サンプルがあれば few-shot としてプロンプトに載り、流�
   assert.ok(section.includes('絶対に流用しないこと'), '内容の流用を禁じている');
 });
 
-test('未所有では所有前提の言い回しを禁じ、所有済みでは許可する', async () => {
+test('未所有では所有も購入検討も禁じ、所有済みでは使用体験を許可する', async () => {
   const { buildStyleSection } = await import('../src/content/style.js');
   const notOwned = buildStyleSection({ styleName: 'casual-diary', samples: [], owned: false });
   const owned = buildStyleSection({ styleName: 'casual-diary', samples: [], owned: true });
-  assert.ok(notOwned.includes('書かない（持っていないため）'), notOwned.slice(-200));
-  assert.ok(notOwned.includes('迷ってる'));
-  assert.ok(owned.includes('ぽちった'));
-  assert.ok(!owned.includes('書かない（持っていないため）'));
+
+  assert.ok(notOwned.includes('持っていないため'), '所有を主張させない');
+  // 「迷ってる」系は読み手に「迷ってるなら買え」と読めるため、未所有でも使わせない
+  assert.ok(notOwned.includes('カートに入れっぱなし」「ぽちるか迷ってる'), '購入検討も禁じる');
+  assert.ok(notOwned.includes('何が更新されたか'), '書くのは発見だと伝える');
+
+  assert.ok(owned.includes('ぽちった'), '所有済みなら購入・使用を書いてよい');
+  assert.ok(!owned.includes('持っていないため'));
 });
 
 test('砕けた文体では言い換えも砕けた形にする', () => {
@@ -522,4 +526,28 @@ test('Threads用の出力が無くても落ちない', () => {
   const out = sanitizeRoom({ variants: [{ angle: 'a', text: 'x' }], hashtags: [] }, roomOpts);
   assert.equal(out.threadsPost.parent, '');
   assert.equal(out.threadsPost.reply, 'ここのです', '既定の一言を置く');
+});
+
+test('購入検討をにおわせる言い回しを検出する', () => {
+  // 「迷ってるなら買え」に読めるため、この文体では最も広告くさくなる
+  const out = sanitizeRoom({
+    variants: [
+      { angle: 'a', text: '珪藻土マット、カートに入れっぱなし。' },
+      { angle: 'b', text: 'ぽちるか迷ってる。' },
+      { angle: 'c', text: 'え、こんなオシャレなのあったのか…。' },
+    ],
+    hashtags: [],
+  }, roomOpts);
+
+  assert.equal(out.salesyCount, 2, '該当する本数を数える');
+  assert.equal(out.variants[0].salesy, true);
+  assert.equal(out.variants[2].salesy, false, '発見型は売り込みではない');
+});
+
+test('発見型の文は売り込み判定に引っかからない', () => {
+  const out = sanitizeRoom({
+    variants: [{ angle: 'a', text: 'え、突っ張り棒って白いやつしか知らなかったけど、こんなのあったのか…。' }],
+    hashtags: [],
+  }, roomOpts);
+  assert.equal(out.salesyCount, 0);
 });

@@ -43,9 +43,15 @@ const UNOWNED_RULES = `【この商品について書いてよいこと】
 
 まだ手元に無い商品です。持っている体で書かないでください。
 
-■ 使える立ち位置
-  「気になってる」「ぽちるか迷ってる」「カートに入れっぱなし」「欲しい」
-  「買うならこのタイミングかな」「見つけた」「良さそう」
+■ 書くのは「発見」です
+  この商品を見て、自分の中の思い込みが何に更新されたかを書きます。
+  「こんなのあるんだ」「知らなかった」「あったのか」「見つけた」
+
+■ 自分の購買行動は書かない
+  「カートに入れっぱなし」「ぽちるか迷ってる」「買うか悩んでる」
+  「このタイミングで決めようかな」「様子見中」
+  → 読み手に「迷ってるなら買え」と言っているように読めます。
+    買うかどうかは読み手に関係がありません。商品への発見だけを書いてください。
 
 ■ 書いてはいけないこと
   所有・使用を前提にした語：
@@ -98,7 +104,10 @@ ${COMMON_RULES}`;
 
 export function buildRoomPrompt({ item, persona, maxChars, event, hashtagCount, owned, styleSection }) {
   const eventLine = event
-    ? `\n【イベント文脈】\n${event.label}が${event.daysUntil === 0 ? '本日' : `${event.daysUntil}日後`}にあります。\n${event.strategy}\n3パターンのうち1つは、このイベントに触れた切り口にしてください（「${event.label}で」程度の自然な触れ方に留めること）。`
+    ? `\n【イベント文脈】\n${event.label}が${event.daysUntil === 0 ? '本日' : `${event.daysUntil}日後`}にあります。\n`
+      + `日数に触れるなら「${event.daysUntil}日後」という表記をそのまま使ってください。自分で数え直さないこと。\n`
+      + `${event.strategy}\n`
+      + `3パターンのうち1つは、このイベントに触れた切り口にしてください（「${event.label}で」程度の自然な触れ方に留めること）。`
     : '';
 
   return `以下の商品について、楽天ROOMのコメント（紹介文）を3パターン作ってください。
@@ -226,6 +235,12 @@ export function sanitizeRoom(draft, {
   const out = structuredClone(draft);
 
   const banned = /(日本一|世界一|業界No\.?1|最安値保証|必ず痩せ|絶対に治|完治)/g;
+  /**
+   * 購入を検討している体の言い回し。
+   * 読み手に「迷ってるなら買え」と言っているように読めるため、
+   * この文体では最も広告くさくなる。プロンプトで禁じても出てくるので機械でも見る。
+   */
+  const salesy = /(カートに入れっぱなし|カート入れっぱなし|ぽちるか迷|買うか迷|買うか悩|購入を迷|購入を悩|様子見中|決めようかな|買うならこのタイミング)/;
   const fakeQuote = /(口コミ(に?よる|では|を見ると)|レビュー(に?よる|では|を見ると))/g;
   // 未所有の商品で「使った」と言い切る表現。owned のときは適用しない
   const claimsUse = /(愛用して(います|いる|る)|リピートして(います|いる|る)|使ってみたところ|使ってみたら|使ってみて|届きました|届いて|買ってよかった|試してみたら)/g;
@@ -247,9 +262,11 @@ export function sanitizeRoom(draft, {
     }
 
     text = text.replace(/[ \t]{2,}/g, ' ').trim();
+    const isSalesy = salesy.test(text);
+    if (isSalesy) warn(`購入検討をにおわせる言い回しが残っています: ${text.slice(0, 40)}`);
     // 楽天ROOMのコメント欄は長文が折り返されて読まれないため、必ず上限内に収める
     if (text.length > maxChars) text = `${text.slice(0, maxChars - 1)}…`;
-    return { angle: String(v.angle ?? '').trim(), text, chars: text.length, owned };
+    return { angle: String(v.angle ?? '').trim(), text, chars: text.length, owned, salesy: isSalesy };
   }).filter((v) => v.text);
 
   const seen = new Set();
@@ -284,6 +301,9 @@ export function sanitizeRoom(draft, {
     parent: String(tp.parent ?? '').replace(/https?:\/\/\S+/g, '').replace(/[ \t]{2,}/g, ' ').trim(),
     reply: String(tp.reply ?? 'ここのです').replace(/https?:\/\/\S+/g, '').trim().slice(0, 12),
   };
+
+  // 過半数が売り込み調なら作り直す価値がある（呼び出し側が判断する）
+  out.salesyCount = out.variants.filter((v) => v.salesy).length;
 
   out.scenePrompt = String(out.scenePrompt ?? '').trim();
   // 旧フィールド名との互換（digest が pain を参照している）
@@ -366,8 +386,16 @@ export async function generateRoomComment(item, cfg, { event = null, owned = nul
                   (samples.length ? ` / お手本${samples.length}本` : '');
     log(`ROOM紹介文を生成 [${label}] (in=${usage.input_tokens} out=${usage.output_tokens} tokens)`
         + (attempt > 1 ? ' ※作り直し' : ''));
-    if (out.variants.length) return out;
-    warn(`紹介文が空で返ったため作り直します (${attempt}/2): ${item.name.slice(0, 30)}`);
+    if (!out.variants.length) {
+      warn(`紹介文が空で返ったため作り直します (${attempt}/2): ${item.name.slice(0, 30)}`);
+      continue;
+    }
+    // 過半数が「カートに入れっぱなし」調なら、選べる案が残らないので作り直す
+    if (out.salesyCount * 2 > out.variants.length && attempt === 1) {
+      warn(`${out.variants.length}本中${out.salesyCount}本が購入検討調のため作り直します: ${item.name.slice(0, 30)}`);
+      continue;
+    }
+    return out;
   }
 
   throw new Error(`紹介文を2回とも生成できませんでした: ${item.name.slice(0, 40)}`);
