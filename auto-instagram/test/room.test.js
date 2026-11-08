@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { upcomingEvents, todaysPlan, LEAD_DAYS, ymd } from '../src/room/calendar.js';
 import { RoomLog, rankProgress, postingStreak, nextAction, ORIGINAL_PHOTO_TARGET } from '../src/room/rank.js';
-import { sanitizeRoom } from '../src/content/room.js';
+import { sanitizeRoom, normalizeRoomDraft, ROOM_SCHEMA } from '../src/content/room.js';
 import { selectKaimawari, scoreItem, PROFILES } from '../src/research/score.js';
 import { buildDigest, LOG_MARKERS } from '../src/room/digest.js';
 import { OwnedItems } from '../src/store/owned.js';
@@ -550,4 +550,43 @@ test('発見型の文は売り込み判定に引っかからない', () => {
     hashtags: [],
   }, roomOpts);
   assert.equal(out.salesyCount, 0);
+});
+
+test('平坦なキーで返ってきた3パターンを組み直す', () => {
+  const out = sanitizeRoom(normalizeRoomDraft({
+    hook: 'x', benefit: 'y', targetPersona: 'z', hashtags: [],
+    angle1: 'イメージの更新', text1: 'え、こんなのあったのか…。',
+    angle2: '値段', text2: '1680円。',
+    angle3: '変な観察', text3: '枕にもなるらしい。',
+    threadsParent: 'え、知らなかった…。', threadsReply: 'ここのです',
+  }), roomOpts);
+  assert.equal(out.variants.length, 3);
+  assert.equal(out.variants[1].text, '1680円。');
+  assert.equal(out.variants[2].angle, '変な観察');
+  assert.equal(out.threadsPost.parent, 'え、知らなかった…。');
+  assert.equal(out.threadsPost.reply, 'ここのです');
+});
+
+test('値の位置にツール記法が混ざっていても拾い直す', () => {
+  const broken = {
+    hook: '\n<parameter name="text1">え、こんなのあったのか…。</parameter>\n'
+      + '<parameter name="angle2">値段</parameter>\n'
+      + '<parameter name="text2">1680円で買えるのか。</parameter>',
+    benefit: 'y', targetPersona: 'z', hashtags: [],
+  };
+  const out = sanitizeRoom(normalizeRoomDraft(broken), roomOpts);
+  assert.equal(out.variants.length, 2, '捨てずに2本復元する');
+  assert.equal(out.variants[0].text, 'え、こんなのあったのか…。');
+  assert.equal(out.variants[1].angle, '値段');
+});
+
+test('スキーマは3パターンを入れ子にしない', () => {
+  // 入れ子にするとモデルがツール記法の文字列を返してくるため、平坦さを固定する
+  const props = ROOM_SCHEMA.properties;
+  assert.equal(props.variants, undefined);
+  assert.equal(props.threadsPost, undefined);
+  for (const key of ['text1', 'text2', 'text3', 'threadsParent', 'threadsReply']) {
+    assert.equal(props[key].type, 'string', key);
+    assert.ok(ROOM_SCHEMA.required.includes(key), `${key} は必須`);
+  }
 });

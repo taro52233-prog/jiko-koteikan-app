@@ -153,40 +153,30 @@ export const ROOM_SCHEMA = {
       description: 'それを使うと生活がどう変わりそうかを1文で',
     },
     targetPersona: { type: 'string', description: 'この文章が刺さる読者像を1文で' },
-    variants: {
-      type: 'array', minItems: 3, maxItems: 3,
-      items: {
-        type: 'object',
-        properties: {
-          angle: { type: 'string', description: 'この文の切り口（例: 変な使い方 / 値段 / 欠点に触れる / 見た目 / セール）' },
-          text: { type: 'string', description: '紹介文本体' },
-        },
-        required: ['angle', 'text'],
-      },
-    },
+    // 3パターンは入れ子（配列の中にオブジェクト）にしない。
+    // 入れ子にするとモデルが自分のツール記法を JSON の値として書いてくる
+    // （実測で6回中5回 `<parameter name="angle">...` という文字列が返った）。
+    // 平坦な文字列に分けると、この崩れ方をしなくなる。
+    angle1: { type: 'string', description: '1本目の切り口（例: イメージの更新 / 変な使い方 / 値段 / 見た目 / セール）' },
+    text1: { type: 'string', description: '1本目の紹介文本体' },
+    angle2: { type: 'string', description: '2本目の切り口。1本目と変えること' },
+    text2: { type: 'string', description: '2本目の紹介文本体' },
+    angle3: { type: 'string', description: '3本目の切り口。1・2本目と変えること' },
+    text3: { type: 'string', description: '3本目の紹介文本体' },
     hashtags: { type: 'array', items: { type: 'string' } },
-    threadsPost: {
-      type: 'object',
+    // Threads / X 用の2段構成。こちらも同じ理由で平坦にする。
+    threadsParent: {
+      type: 'string',
       description:
-        'Threads / X 用の2段構成。親投稿にはリンクも商品名も置かず、写真と自分の驚きだけを書き、'
-        + 'リンクは自分へのリプライに短く添える。タイムラインで広告に見えず、'
-        + '親投稿にリンクが無いぶんリーチも落ちにくい。',
-      properties: {
-        parent: {
-          type: 'string',
-          description:
-            '親投稿の本文。**商品名もリンクも書かない**。写真と一緒に読まれる前提で、'
-            + '自分が知らなかったことが更新された瞬間を書く。60〜100文字。'
-            + '例: 「え、正直ニトリやダイソーの白い突っ張り棒しか知らなかったけど、こんなインテリアに馴染むのあったのか…。」',
-        },
-        reply: {
-          type: 'string',
-          description:
-            'リンクに添える一言だけ。10文字以内。売り込まない。'
-            + '例: 「ここのです」「これです」「これ」',
-        },
-      },
-      required: ['parent', 'reply'],
+        'Threads / X の親投稿の本文。**商品名もリンクも書かない**。写真と一緒に読まれる前提で、'
+        + '自分が知らなかったことが更新された瞬間を書く。60〜100文字。'
+        + '例: 「え、正直ニトリやダイソーの白い突っ張り棒しか知らなかったけど、こんなインテリアに馴染むのあったのか…。」',
+    },
+    threadsReply: {
+      type: 'string',
+      description:
+        '親投稿への自分のリプライ。リンクに添える一言だけ。10文字以内。売り込まない。'
+        + '例: 「ここのです」「これです」「これ」',
     },
     scenePrompt: {
       type: 'string',
@@ -197,7 +187,9 @@ export const ROOM_SCHEMA = {
         + '例: "A quiet Japanese bathroom in soft morning light, bare feet stepping onto a dry mat, minimal and clean."',
     },
   },
-  required: ['hook', 'benefit', 'targetPersona', 'variants', 'hashtags', 'threadsPost', 'scenePrompt'],
+  required: ['hook', 'benefit', 'targetPersona',
+    'angle1', 'text1', 'angle2', 'text2', 'angle3', 'text3',
+    'hashtags', 'threadsParent', 'threadsReply', 'scenePrompt'],
 };
 
 /**
@@ -226,6 +218,71 @@ function toArray(v, label) {
     warn(`${label} を配列として解釈できませんでした: ${JSON.stringify(v).slice(0, 80)}`);
   }
   return [];
+}
+
+/**
+ * モデルが JSON の値として書いてきた自分のツール記法を解釈し直す。
+ *
+ * 構造化出力を強制していても、モデルは稀に値の位置へ
+ * `<parameter name="text1">本文…</parameter>` のような自分の記法を書いてくる。
+ * スキーマを平坦にしたことで、この記法に現れる名前が
+ * こちらのキー名と一致するようになったため、拾い直せる。
+ */
+export function recoverParameters(text) {
+  const found = {};
+  const re = /<parameter\s+name="([^"]+)"\s*>([\s\S]*?)(?=<parameter\s+name=|<\/parameter>|$)/g;
+  for (const m of String(text).matchAll(re)) {
+    const value = m[2].replace(/<\/?(parameter|invoke|function_calls)[^>]*>/g, '').trim();
+    if (value) found[m[1]] = value;
+  }
+  return found;
+}
+
+/**
+ * ツールの返り値を内部表現に揃える。
+ *
+ * 受けつける形は3つ:
+ *   1. 現行の平坦な形（angle1 / text1 … / threadsParent / threadsReply）
+ *   2. 旧来の入れ子の形（variants: [{angle, text}] / threadsPost: {parent, reply}）
+ *      — 保存済みの下書きやテストがこの形なので残す
+ *   3. 1 のキーに向けてツール記法の文字列が混ざった形 — 拾い直す
+ */
+export function normalizeRoomDraft(raw) {
+  const out = { ...(raw && typeof raw === 'object' ? raw : {}) };
+
+  // ツール記法が混ざっていたら、拾えた値で埋める（既に正しい値がある項目は触らない）
+  for (const [key, value] of Object.entries(out)) {
+    if (typeof value !== 'string' || !value.includes('<parameter name=')) continue;
+    const got = recoverParameters(value);
+    if (!Object.keys(got).length) continue;
+    warn(`${key} にツール記法が混ざっていたため解釈し直しました: ${Object.keys(got).join(', ')}`);
+    delete out[key];
+    for (const [k, v] of Object.entries(got)) if (!out[k]) out[k] = v;
+  }
+
+  // 平坦なキーを variants に組み直す
+  const flat = [];
+  for (let i = 1; i <= 3; i++) {
+    const text = out[`text${i}`];
+    if (typeof text === 'string' && text.trim()) {
+      flat.push({ angle: String(out[`angle${i}`] ?? '').trim(), text: text.trim() });
+    }
+    delete out[`text${i}`];
+    delete out[`angle${i}`];
+  }
+  if (flat.length) out.variants = flat;
+
+  // 平坦なキーを threadsPost に組み直す
+  if (out.threadsParent !== undefined || out.threadsReply !== undefined) {
+    out.threadsPost = {
+      parent: out.threadsParent ?? out.threadsPost?.parent ?? '',
+      reply: out.threadsReply ?? out.threadsPost?.reply ?? 'ここのです',
+    };
+  }
+  delete out.threadsParent;
+  delete out.threadsReply;
+
+  return out;
 }
 
 export function sanitizeRoom(draft, {
@@ -331,9 +388,8 @@ export function needsDisclosure(mode, owned) {
 /**
  * 1件分の紹介文を作る。
  *
- * LLM は構造化出力を強制していても、稀に variants を配列ではなく
- * ツール記法が混ざった文字列（例: `<parameter name="angle">...`）で返す。
- * その場合 3パターンが空になるので、1度だけ作り直す。
+ * スキーマを平坦にし normalizeRoomDraft で拾い直しても、
+ * 紹介文が1本も取れないことはあり得る。その場合は1度だけ作り直し、
  * それでも空なら例外にして、呼び出し側でその商品を飛ばす。
  * 空のまま digest に流すと、商品名だけ並んで紹介文が無い状態になる。
  */
@@ -374,7 +430,7 @@ export async function generateRoomComment(item, cfg, { event = null, owned = nul
   let out = null;
   for (let attempt = 1; attempt <= 2; attempt++) {
     const { input, usage } = await ask();
-    out = sanitizeRoom(input, {
+    out = sanitizeRoom(normalizeRoomDraft(input), {
       maxChars,
       hashtagCount,
       disclosureRequired: needsDisclosure(cfg.disclosureMode, owned),
