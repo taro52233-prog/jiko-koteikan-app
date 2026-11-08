@@ -96,12 +96,12 @@ function candidateSection(candidates) {
       `${yen(item.price)}　★${item.reviewAverage}（${item.reviewCount.toLocaleString('ja-JP')}件）　${item.shopName}`,
       `🔗 [楽天ROOMに追加する](${item.url})`,
       [
-        content.pain ? `> **着眼点**: ${content.pain}` : "",,
+        content.pain ? `> **着眼点**: ${content.pain}` : '',
         `> **狙い**: ${content.benefit}`,
         `> **刺さる相手**: ${content.targetPersona}`,
         content.writingMode === 'owned'
           ? '> 🟢 **使用体験モード**（`owned-items.json` に登録済み）'
-          : '> ⚪️ ペインファースト（未所有のため使用体験は書いていません）',
+          : '> ⚪️ 未所有（使用体験は書いていません）',
       ].filter(Boolean).join('\n'),
       variants,
       threads,
