@@ -64,6 +64,8 @@ export const config = {
     owned: path.join(ROOT, 'data', 'owned-items.json'),
     /** 文体をまねる元になる実投稿サンプル（few-shot） */
     styleSamples: path.join(ROOT, 'data', 'style-samples.json'),
+    /** 自分の Threads 投稿の実績（書き出しの型ごとの反応率） */
+    styleFeedback: path.join(ROOT, 'data', 'style-feedback.json'),
   },
 
   /** 生成物の公開ベースURL（GitHub Pages）。例: https://<user>.github.io/<repo>/ig */
@@ -71,6 +73,25 @@ export const config = {
 
   /** review = 承認待ちキューに積むだけ / auto = そのまま投稿する */
   postMode: (env.POST_MODE || 'review').toLowerCase(),
+
+  /**
+   * Threads（自分の投稿の実績を読む用途）。
+   *
+   * 自分のアカウントだけなら App Review は不要。アプリを開発モードのまま置き、
+   * 自分の Threads アカウントをテスターとして招待・承認すれば動く。
+   * 他人の投稿を検索する keyword_search / profile_lookup は審査が必要なので、
+   * ここでは扱わない。
+   */
+  threads: {
+    accessToken: env.THREADS_ACCESS_TOKEN || '',
+    /** 空なら 'me'（トークンの持ち主）を使う */
+    userId: env.THREADS_USER_ID || 'me',
+    baseUrl: env.THREADS_BASE_URL || 'https://graph.threads.net/v1.0',
+    /** 実績を何日分さかのぼって取り込むか */
+    feedbackDays: num(env.THREADS_FEEDBACK_DAYS, 60),
+    /** 1回の実行で取得する投稿数の上限 */
+    feedbackLimit: num(env.THREADS_FEEDBACK_LIMIT, 50),
+  },
 
   research: {
     provider: (env.RESEARCH_PROVIDER || 'rakuten').toLowerCase(),

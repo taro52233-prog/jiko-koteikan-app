@@ -25,6 +25,8 @@ import { OwnedItems } from './store/owned.js';
 import { loadStyleSamples, resolveStyle, DEFAULT_STYLE } from './content/style.js';
 import { generateSceneImage } from './image/scene.js';
 import { buildDigest } from './room/digest.js';
+import { collectOwnPostMetrics } from './publish/threads.js';
+import { StyleFeedback } from './store/feedback.js';
 import { jstStamp, log, warn, sleep, nowJst } from './util.js';
 
 const slugify = (s) => String(s).replace(/[^A-Za-z0-9]+/g, '-').replace(/^-|-$/g, '').toLowerCase().slice(0, 40);
@@ -436,7 +438,13 @@ export async function roomDigest({ dryRun = false } = {}) {
   }
 
   const progress = rankProgress(roomLog);
-  const { title, body } = buildDigest({ plan, candidates, tomorrow, kaimawari, progress });
+  // 実績は feedback コマンドが別途コミットしたファイルを読むだけ。
+  // digest のためだけに Threads API を呼ぶと、トークン切れで digest 全体が
+  // 止まることになるので、ここでは取得しない。
+  const feedback = fs.existsSync(config.paths.styleFeedback)
+    ? StyleFeedback.load(config.paths.styleFeedback).summary({ days: config.threads.feedbackDays })
+    : null;
+  const { title, body } = buildDigest({ plan, candidates, tomorrow, kaimawari, progress, feedback });
 
   if (dryRun) {
     console.log(`\n===== ${title} =====\n`);
@@ -450,4 +458,59 @@ export async function roomDigest({ dryRun = false } = {}) {
   roomLog.save();
   log(`digest を配信しました${issueNumber ? ` (#${issueNumber})` : ''}`);
   return { title, body, candidates, issueNumber };
+}
+
+/**
+ * 自分の Threads 投稿の実績を取り込み、書き出しの型ごとに集計する。
+ *
+ * これが「学習」の本体にあたる。他人のバズを集めるのと違い、
+ * フォロワー・写真・アカウントの信用が固定なので、型だけが変数になる。
+ *
+ * 取り込んだ時点では生成プロンプトに反映しない。型ごとの件数が揃うまでは
+ * 中央値がただの揺れなので、digest に出して目で見る段階に留める。
+ * 反映を始める条件は StyleFeedback.summary() の actionable で判定する。
+ */
+export async function threadsFeedback({ dryRun = false } = {}) {
+  if (!config.threads.accessToken) {
+    throw new Error('必要な環境変数が未設定です: THREADS_ACCESS_TOKEN');
+  }
+
+  const posts = await collectOwnPostMetrics({
+    token: config.threads.accessToken,
+    userId: config.threads.userId,
+    baseUrl: config.threads.baseUrl,
+    limit: config.threads.feedbackLimit,
+    sinceDays: config.threads.feedbackDays,
+  });
+
+  const feedback = StyleFeedback.load(config.paths.styleFeedback);
+  const { added, total } = feedback.merge(posts);
+  log(`実績を取り込みました（新規 ${added} 件 / 累計 ${total} 件）`);
+
+  const summary = feedback.summary({ days: config.threads.feedbackDays });
+
+  console.log(`\n===== 書き出しの型ごとの実績（直近${summary.days}日・${summary.total}件） =====\n`);
+  if (!summary.rows.length) {
+    console.log('まだ集計できる投稿がありません。');
+  } else {
+    for (const r of summary.rows) {
+      const rate = r.reactionRate === null ? '—' : `${(r.reactionRate * 100).toFixed(1)}%`;
+      console.log(
+        `  ${r.label.padEnd(12, '　')} ${String(r.n).padStart(3)}件  `
+        + `反応率 ${rate.padStart(6)}  閲覧 ${r.medianViews ?? '—'}  いいね ${r.medianLikes ?? '—'}`
+        + (r.enough ? '' : `  ※${summary.minSamples}件未満`)
+      );
+    }
+  }
+  console.log(
+    `\n反応率 = いいね / 閲覧数 の中央値。閲覧数は配信量（時刻・画像・アルゴリズム）に\n`
+    + `左右されるため、文章の力に近いこちらで並べています。\n`
+    + (summary.actionable
+      ? '件数が揃ったので、生成への反映を始められます。\n'
+      : `${summary.minSamples}件以上ある型が2つ揃うまでは、報告だけに留めています。\n`)
+  );
+
+  if (dryRun) return { summary, dryRun: true };
+  feedback.save();
+  return { summary, added, total };
 }

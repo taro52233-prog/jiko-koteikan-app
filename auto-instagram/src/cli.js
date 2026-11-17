@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /** コマンドラインの入口。GitHub Actions からも手元からも同じ経路で動かす。 */
-import { build, publish, doctor, roomDigest } from './pipeline.js';
+import { build, publish, doctor, roomDigest, threadsFeedback } from './pipeline.js';
 import { config } from './config.js';
 
 const argv = process.argv.slice(2);
@@ -27,6 +27,9 @@ const HELP = `
   publish   キュー内の承認済み投稿を Instagram へ公開
   run       build と publish を続けて実行（画像が既に公開URLで配信できる場合のみ）
 
+  Threads（自分の投稿の実績を学習材料にする）
+  feedback  自分の Threads 投稿の実績を取り込み、書き出しの型ごとの反応率を出す
+
   共通
   doctor    設定・認証・フォントの健全性チェック
 
@@ -52,6 +55,9 @@ async function main() {
       break;
     case 'digest':
       await roomDigest({ dryRun });
+      break;
+    case 'feedback':
+      await threadsFeedback({ dryRun });
       break;
     case 'calendar': {
       const { todaysPlan } = await import('./room/calendar.js');

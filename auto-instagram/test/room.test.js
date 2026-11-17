@@ -6,6 +6,8 @@ import { sanitizeRoom, normalizeRoomDraft, ROOM_SCHEMA, buildRoomPrompt } from '
 import { selectKaimawari, scoreItem, PROFILES } from '../src/research/score.js';
 import { buildDigest, LOG_MARKERS } from '../src/room/digest.js';
 import { OwnedItems } from '../src/store/owned.js';
+import { classifyOpening } from '../src/content/classify.js';
+import { StyleFeedback } from '../src/store/feedback.js';
 import { buildScenePrompt } from '../src/image/scene.js';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -629,4 +631,104 @@ test('イベント文脈は日付と日数の両方を渡し、お得訴求を�
   assert.ok(prompt.includes('11/10（2日後）'), prompt.slice(0, 400));
   assert.ok(prompt.includes('「お得」'), 'お得訴求の禁止が入っている');
   assert.ok(prompt.includes('レビュー件数と平均点を本文に書かない'));
+});
+
+// --- Threads 実績（自分の投稿を学習材料にする） -------------------------------
+
+test('書き出しの型を本文から判定する', () => {
+  assert.equal(classifyOpening('え、突っ張り棒って白いやつしか知らなかったけど、こんなのあったのか…。'), 'image-update');
+  assert.equal(classifyOpening('これー！！！買った！！！！'), 'emotion');
+  assert.equal(classifyOpening('買ったのこれ⬇︎1680円。'), 'price');
+  assert.equal(classifyOpening('11/10に0と5のつく日くるんだった、覚えとこ。'), 'event');
+  assert.equal(classifyOpening('内側セラミックコーティングって見て手が止まった。'), 'spec');
+  assert.equal(classifyOpening('リュックにネギさしてる後ろ姿の写真'), 'other');
+});
+
+test('冒頭のPR表記は型の判定に影響しない', () => {
+  assert.equal(
+    classifyOpening('【PR】商品提供を受けています。\nえ、こんなのあったのか…。'),
+    'image-update',
+  );
+});
+
+test('実績は反応率（いいね/閲覧数）の中央値で並ぶ', () => {
+  const file = path.join(os.tmpdir(), `feedback-${Date.now()}.json`);
+  const f = StyleFeedback.load(file);
+  const now = new Date().toISOString();
+  f.merge([
+    // 閲覧は少ないが反応率が高い型
+    { id: 'a1', text: 'え、こんなのあったのか…。', views: 100, likes: 20, timestamp: now },
+    { id: 'a2', text: 'え、知らなかった…。', views: 200, likes: 40, timestamp: now },
+    { id: 'a3', text: 'え、あったのか…。', views: 300, likes: 60, timestamp: now },
+    // 閲覧は多いが反応率が低い型
+    { id: 'b1', text: '1680円。', views: 5000, likes: 50, timestamp: now },
+    { id: 'b2', text: '2980円。', views: 6000, likes: 60, timestamp: now },
+    { id: 'b3', text: '980円。', views: 7000, likes: 70, timestamp: now },
+  ]);
+  const s = f.summary();
+  assert.equal(s.rows[0].type, 'image-update', '閲覧数ではなく反応率で勝つ型が先頭');
+  assert.equal(s.rows[0].reactionRate, 0.2);
+  assert.equal(s.rows[1].type, 'price');
+  assert.equal(s.rows[1].reactionRate, 0.01);
+  assert.ok(s.rows[0].medianViews < s.rows[1].medianViews, '閲覧数では負けている');
+  assert.equal(s.actionable, true, '3件以上の型が2つあるので反映可能');
+});
+
+test('件数が足りない型には印を付け、反映を始めない', () => {
+  const f = StyleFeedback.load(path.join(os.tmpdir(), `feedback-${Date.now()}-2.json`));
+  f.merge([{ id: 'x1', text: 'え、あったのか…。', views: 100, likes: 10, timestamp: new Date().toISOString() }]);
+  const s = f.summary();
+  assert.equal(s.rows[0].enough, false);
+  assert.equal(s.actionable, false, '件数が揃うまでは報告だけ');
+});
+
+test('同じ投稿は上書きされる（指標は後から伸びる）', () => {
+  const f = StyleFeedback.load(path.join(os.tmpdir(), `feedback-${Date.now()}-3.json`));
+  const now = new Date().toISOString();
+  f.merge([{ id: 'same', text: 'え、あったのか…。', views: 100, likes: 5, timestamp: now }]);
+  const second = f.merge([{ id: 'same', text: 'え、あったのか…。', views: 900, likes: 90, timestamp: now }]);
+  assert.equal(second.added, 0, '新規として数えない');
+  assert.equal(second.total, 1);
+  assert.equal(f.summary().rows[0].medianViews, 900, '新しい値で置き換わる');
+});
+
+test('閲覧数が取れない投稿は反応率の計算に混ぜない', () => {
+  const f = StyleFeedback.load(path.join(os.tmpdir(), `feedback-${Date.now()}-4.json`));
+  const now = new Date().toISOString();
+  f.merge([
+    { id: 'c1', text: 'え、あったのか…。', views: 100, likes: 10, timestamp: now },
+    { id: 'c2', text: 'え、知らなかった…。', views: 0, likes: 0, timestamp: now },
+    { id: 'c3', text: 'え、こんなのあるんだ…。', views: null, likes: null, timestamp: now },
+  ]);
+  const row = f.summary().rows[0];
+  assert.equal(row.n, 3, '件数には入れる');
+  assert.equal(row.reactionRate, 0.1, '反応率は閲覧数のある1件だけで出す');
+});
+
+test('digest に実績の表が入る', () => {
+  const { body } = buildDigest({
+    plan: { date: '2026-11-17', phase: 'normal', target: null, upcoming: [], kaimawari: false },
+    candidates: [], tomorrow: [], kaimawari: null,
+    progress: rankProgress(new RoomLog('/dev/null')),
+    feedback: {
+      days: 60, total: 6, minSamples: 3, actionable: true,
+      rows: [
+        { type: 'image-update', label: 'イメージの更新', n: 3, medianViews: 200, medianLikes: 40, reactionRate: 0.2, enough: true },
+        { type: 'price', label: '値段から入る', n: 3, medianViews: 6000, medianLikes: 60, reactionRate: 0.01, enough: true },
+      ],
+    },
+  });
+  assert.ok(body.includes('書き出しの型ごとの実績'), body.slice(-600));
+  assert.ok(body.includes('イメージの更新'));
+  assert.ok(body.includes('20.0%'), '反応率がパーセントで出る');
+});
+
+test('実績が無いときは digest に表を出さない', () => {
+  const { body } = buildDigest({
+    plan: { date: '2026-11-17', phase: 'normal', target: null, upcoming: [], kaimawari: false },
+    candidates: [], tomorrow: [], kaimawari: null,
+    progress: rankProgress(new RoomLog('/dev/null')),
+    feedback: null,
+  });
+  assert.ok(!body.includes('書き出しの型ごとの実績'));
 });

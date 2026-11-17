@@ -195,7 +195,34 @@ function logSection() {
 }
 
 /** digest 全体の Markdown を組み立てる */
-export function buildDigest({ plan, candidates, tomorrow, kaimawari, progress }) {
+/**
+ * 自分の Threads 投稿の実績。
+ *
+ * 他人のバズと違い、フォロワー・写真・アカウントの信用が固定なので、
+ * 書き出しの型だけが変数になる。だから比較に意味が出る。
+ * 並べる基準は閲覧数ではなく反応率（いいね / 閲覧数）。
+ * 閲覧数は配信量で、投稿時刻・画像・アルゴリズムに強く左右されるため。
+ */
+function feedbackSection(feedback) {
+  if (!feedback?.rows?.length) return '';
+  const rows = feedback.rows.map((r) => {
+    const rate = r.reactionRate === null ? '—' : `${(r.reactionRate * 100).toFixed(1)}%`;
+    const note = r.enough ? '' : ` ※${feedback.minSamples}件未満`;
+    return `| ${r.label} | ${r.n}件 | **${rate}** | ${r.medianViews ?? '—'} | ${r.medianLikes ?? '—'}${note} |`;
+  });
+  return paragraphs(
+    '### 📊 書き出しの型ごとの実績（自分の Threads 投稿）',
+    `直近${feedback.days}日・${feedback.total}件。**反応率 = いいね / 閲覧数**の中央値で並べています。`,
+    '| 型 | 件数 | 反応率 | 閲覧(中央値) | いいね(中央値) |',
+    '| --- | --- | --- | --- | --- |',
+    rows.join('\n'),
+    feedback.actionable
+      ? '件数が揃いました。上位の型を厚めに出すよう生成側へ反映できます。'
+      : `${feedback.minSamples}件以上ある型が2つ揃うまでは参考値です（件数が少ないと中央値はただの揺れになります）。`,
+  );
+}
+
+export function buildDigest({ plan, candidates, tomorrow, kaimawari, progress, feedback = null }) {
   const title = plan.target && plan.phase === 'prep'
     ? `${plan.date}｜${plan.target.label}の仕込み（${plan.target.daysUntil}日前）`
     : `${plan.date}｜今日の楽天ROOM`;
@@ -215,6 +242,7 @@ export function buildDigest({ plan, candidates, tomorrow, kaimawari, progress })
     nightSection(tomorrow),
     '---',
     progressSection(progress),
+    feedback?.rows?.length ? ['---', feedbackSection(feedback)] : '',
     '---',
     logSection(),
     '<sub>この digest は auto-instagram パイプラインが自動生成しています。楽天ROOM には投稿用の公開APIが無いため、投稿操作だけ手動で残しています。</sub>',

@@ -1,0 +1,75 @@
+name: Threads 実績の取り込み
+
+# 自分の Threads 投稿の実績を取り込み、「書き出しの型」ごとの反応率を出す。
+#
+# なぜ他人のバズ分析ではなくこれなのか:
+#   他人の投稿が伸びた理由には、フォロワー数・写真・投稿時刻の寄与が混ざっていて、
+#   収集量を増やしても取り除けない。自分の投稿ならそれらがほぼ固定なので、
+#   書き出しの型だけが変数になる。だから比較に意味が出る。
+#
+# 並べる基準は閲覧数ではなく「いいね / 閲覧数」。
+# 閲覧数は配信量で、文章の力に近いのは見た人のうち何人が反応したかなので。
+#
+# 必要な権限: threads_basic + threads_manage_insights
+# 自分のアカウントだけを読む用途なら App Review は不要。アプリを開発モードのまま置き、
+# 自分の Threads アカウントをテスターとして招待・承認すれば動く。
+on:
+  schedule:
+    # 毎週月曜 08:00 JST（= 日曜 23:00 UTC）。週の頭に先週分の結果を見る
+    - cron: '0 23 * * 0'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'ファイルに保存せず結果をログに出すだけ'
+        type: boolean
+        default: false
+
+concurrency:
+  group: room-pipeline
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  feedback:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: auto-instagram/package-lock.json
+
+      - run: npm ci
+        working-directory: auto-instagram
+
+      - name: 実績を取り込む
+        working-directory: auto-instagram
+        env:
+          THREADS_ACCESS_TOKEN: ${{ secrets.THREADS_ACCESS_TOKEN }}
+          THREADS_USER_ID: ${{ vars.THREADS_USER_ID }}
+          THREADS_FEEDBACK_DAYS: ${{ vars.THREADS_FEEDBACK_DAYS }}
+          THREADS_FEEDBACK_LIMIT: ${{ vars.THREADS_FEEDBACK_LIMIT }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: node src/cli.js feedback
+
+      - name: 実績をコミット
+        if: ${{ !inputs.dry_run }}
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add auto-instagram/data/style-feedback.json
+          if git diff --staged --quiet; then
+            echo "変更なし"
+            exit 0
+          fi
+          git commit -m "chore(threads): 投稿実績を取り込み [skip ci]"
+          for i in 1 2 3 4; do
+            git push && exit 0
+            echo "push に失敗しました。再試行します ($i/4)"
+            sleep $((2 ** i))
+          done
+          git push
